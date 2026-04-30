@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>近視成因與糾正模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f7fafc;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .canvas-container {
+            position: relative;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+        }
+        .control-panel {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            background: #edf2f7;
+            border-radius: 5px;
+            appearance: none;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4f46e5;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">近視成因與精確糾正模擬器</h1>
+            <p class="text-slate-500">調整眼部參數並匹配正確的屈光度 (Diopter)</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- 模擬器視窗 -->
+            <div class="lg:col-span-8">
+                <div class="canvas-container">
+                    <canvas id="eyeCanvas"></canvas>
+                </div>
+                <div id="statusIndicator" class="mt-4 p-4 rounded-xl border-l-4 transition-all duration-300">
+                    <p id="statusText" class="text-sm font-medium"></p>
+                </div>
+            </div>
+
+            <!-- 控制面板 -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="control-panel">
+                    <h3 class="font-bold text-lg mb-6 flex items-center gap-2">
+                        <span>⚙️</span> 參數調整
+                    </h3>
+
+                    <div class="mb-8">
+                        <label class="block text-sm font-semibold mb-2">眼軸長度 (Axial Length)</label>
+                        <input type="range" id="axialLength" min="0" max="100" value="0">
+                        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                            <span>正常</span>
+                            <span>眼軸過長</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-8">
+                        <label class="block text-sm font-semibold mb-2">水晶體弧度 (Refraction)</label>
+                        <input type="range" id="lensCurvature" min="0" max="100" value="0">
+                        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                            <span>正常</span>
+                            <span>過度變凸</span>
+                        </div>
+                    </div>
+
+                    <div class="h-px bg-slate-100 my-6"></div>
+
+                    <!-- 糾正功能 -->
+                    <div class="bg-indigo-50 p-4 rounded-xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="block font-bold text-indigo-900">配戴凹透鏡</span>
+                                <span class="text-[10px] text-indigo-600">輔助光線後移</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="correctiveLens" class="sr-only peer">
+                                <div class="w-12 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+
+                        <div id="diopterControl" class="opacity-40 pointer-events-none transition-opacity duration-300">
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-semibold text-indigo-900">焦強 (D): <span id="diopterVal" class="text-indigo-600">-0.0</span></label>
+                            </div>
+                            <input type="range" id="diopterStrength" min="0" max="80" value="0">
+                            <div class="flex justify-between text-[10px] text-indigo-400 mt-1">
+                                <span>0D</span>
+                                <span>-8.0D</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="resetBtn" class="w-full mt-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-lg transition active:scale-95">
+                        恢復初始狀態
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('eyeCanvas');
+        const ctx = canvas.getContext('2d');
+        const axialSlider = document.getElementById('axialLength');
+        const lensSlider = document.getElementById('lensCurvature');
+        const correctionToggle = document.getElementById('correctiveLens');
+        const diopterSlider = document.getElementById('diopterStrength');
+        const diopterLabel = document.getElementById('diopterVal');
+        const diopterControl = document.getElementById('diopterControl');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusDiv = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = 500 * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = '500px';
+            ctx.scale(dpr, dpr);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        function draw() {
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+            const centerX = w * 0.45;
+            const centerY = h / 2;
+
+            const axial = axialSlider.value / 100;
+            const curv = lensSlider.value / 100;
+            const isCorrected = correctionToggle.checked;
+            const diopter = isCorrected ? (diopterSlider.value / 10) : 0;
+
+            // 更新 UI
+            diopterLabel.innerText = `-${diopter.toFixed(1)}`;
+            diopterControl.style.opacity = isCorrected ? "1" : "0.4";
+            diopterControl.style.pointerEvents = isCorrected ? "auto" : "none";
+
+            ctx.clearRect(0, 0, w, h);
+
+            // 參數設定
+            const eyeBaseRadius = 120;
+            const eyeExtension = axial * 80;
+            const retinaX = centerX + eyeBaseRadius + eyeExtension;
+            const lensX = centerX - eyeBaseRadius + 45;
+
+            // 1. 繪製眼球主體
+            ctx.beginPath();
+            ctx.ellipse(centerX + (eyeExtension/2), centerY, eyeBaseRadius + (eyeExtension/2), eyeBaseRadius, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#fbb6ce'; 
+            ctx.globalAlpha = 0.25;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 繪製視網膜
+            ctx.beginPath();
+            ctx.arc(centerX + (eyeExtension/2), centerY, eyeBaseRadius + (eyeExtension/2) - 2, -Math.PI/2, Math.PI/2);
+            ctx.strokeStyle = '#f472b6';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // 2. 繪製水晶體
+            const lensWidth = 15 + (curv * 20);
+            const lensHeight = 60;
+            ctx.beginPath();
+            ctx.ellipse(lensX, centerY, lensWidth, lensHeight, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.fill();
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 3. 繪製眼鏡 (凹透鏡)
+            if (isCorrected) {
+                const glassX = lensX - 85;
+                // 視覺厚度隨 D 值微調
+                const glassCurve = 10 + (diopter * 1.5);
+                ctx.beginPath();
+                ctx.moveTo(glassX, centerY - 50);
+                ctx.quadraticCurveTo(glassX + glassCurve, centerY, glassX, centerY + 50);
+                ctx.lineTo(glassX + 15, centerY + 50);
+                ctx.quadraticCurveTo(glassX + 15 + glassCurve, centerY, glassX + 15, centerY - 50);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(199, 210, 254, 0.4)';
+                ctx.fill();
+                ctx.strokeStyle = '#6366f1';
+                ctx.stroke();
+            }
+
+            // 4. 光線路徑
+            const rayCount = 5;
+            const raySpread = 40;
+            
+            // 物理焦點模型
+            // 基礎焦點 (假設視力正常時)
+            const baseFocusPos = centerX + eyeBaseRadius;
+            // 近視偏移量 (眼軸長度造成的偏移 + 水晶體過凸造成的偏移)
+            const myopiaOffset = (curv * 110);
+            // 糾正偏移量 (D值造成的發散)
+            const correctionOffset = (diopter * 20);
+
+            let focusX = baseFocusPos - myopiaOffset + correctionOffset;
+
+            ctx.setLineDash([]);
+            for (let i = 0; i < rayCount; i++) {
+                const yOff = (i - (rayCount-1)/2) * (raySpread / (rayCount-1));
+                const startY = centerY + yOff;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 1;
+
+                if (isCorrected) {
+                    const glassX = lensX - 80;
+                    ctx.moveTo(0, startY);
+                    ctx.lineTo(glassX, startY);
+                    // 凹透鏡發散角度隨 D 值增大
+                    const divY = startY + (yOff * (diopter * 0.08)); 
+                    ctx.lineTo(lensX, divY);
+                    ctx.lineTo(focusX, centerY);
+                } else {
+                    ctx.moveTo(0, startY);
+                    ctx.lineTo(lensX, startY);
+                    ctx.lineTo(focusX, centerY);
+                }
+                ctx.stroke();
+
+                // 模糊路徑
+                if (focusX < retinaX - 5) {
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    ctx.moveTo(focusX, centerY);
+                    const blurY = centerY - ( (retinaX - focusX) * (yOff / Math.max(10, focusX - lensX)) );
+                    ctx.lineTo(retinaX, blurY);
+                    ctx.stroke();
+                }
+            }
+
+            // 5. 狀態標記
+            const isHit = Math.abs(focusX - retinaX) < 12;
+            ctx.font = "32px serif";
+            ctx.textAlign = "center";
+            if (isHit) {
+                ctx.fillStyle = "#10b981";
+                ctx.fillText("✅", retinaX + 30, centerY + 10);
+                updateStatusUI("success", diopter, isCorrected);
+            } else {
+                ctx.fillStyle = "#ef4444";
+                ctx.fillText("❌", retinaX + 30, centerY + 10);
+                updateStatusUI(focusX < retinaX ? "myopia" : "hyperopia", diopter, isCorrected);
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        function updateStatusUI(type, diopter, isCorrected) {
+            if (type === "success") {
+                statusDiv.className = "mt-4 p-4 rounded-xl border-l-4 bg-green-50 border-green-500 text-green-800";
+                statusText.innerHTML = isCorrected && diopter > 0 
+                    ? `<strong>完美糾正：</strong> 配戴 -${diopter.toFixed(1)}D 凹透鏡成功讓光線聚焦於視網膜。`
+                    : "<strong>視力清晰：</strong> 焦點位於視網膜上。";
+            } else if (type === "myopia") {
+                statusDiv.className = "mt-4 p-4 rounded-xl border-l-4 bg-red-50 border-red-500 text-red-800";
+                statusText.innerHTML = "<strong>成像模糊：</strong> 焦點落在視網膜前方。請增加凹透鏡焦強 (D)。";
+            } else {
+                statusDiv.className = "mt-4 p-4 rounded-xl border-l-4 bg-amber-50 border-amber-500 text-amber-800";
+                statusText.innerHTML = "<strong>糾正過度：</strong> 焦點落在視網膜後方。請減小凹透鏡焦強 (D)。";
+            }
+        }
+
+        resetBtn.addEventListener('click', () => {
+            axialSlider.value = 0;
+            lensSlider.value = 0;
+            correctionToggle.checked = false;
+            diopterSlider.value = 0;
+        });
+
+        draw();
+    </script>
+</body>
+</html>
