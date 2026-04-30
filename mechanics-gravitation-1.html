@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理模擬：地球與人造衛星</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #050505; color: white; font-family: sans-serif; }
+        canvas { display: block; }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 320px;
+            user-select: none;
+            z-index: 50;
+        }
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            padding: 20px;
+            border-radius: 16px;
+            border: 2px solid rgba(96, 165, 250, 0.3);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            min-width: 280px;
+            z-index: 50;
+        }
+        .stat-item { margin-bottom: 12px; }
+        .stat-item:last-child { margin-bottom: 0; }
+        .stat-label { font-size: 0.9rem; color: #94a3b8; display: block; margin-bottom: 2px; }
+        .stat-value { font-size: 1.5rem; font-weight: bold; display: block; }
+
+        .congrats {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(16, 185, 129, 0.95);
+            padding: 40px;
+            border-radius: 24px;
+            text-align: center;
+            display: none;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+            z-index: 100;
+            border: 4px solid white;
+        }
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0.7); }
+            70% { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 0 30px rgba(16,185,129,0); }
+            100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+        }
+        input[type=range] { width: 100%; cursor: pointer; }
+        .label-val { float: right; color: #60a5fa; font-weight: bold; }
+        
+        .waiting-overlay {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            color: #fbbf24;
+            border: 1px dashed #fbbf24;
+            pointer-events: none;
+        }
+
+        .scale-info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.4);
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h1 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">同步衛星軌道驗證</h1>
+        
+        <div class="mb-4">
+            <label>初始速率 (km/s) <span id="v-val" class="label-val">3.07</span></label>
+            <input type="range" id="v-slider" min="1" max="15" step="0.01" value="3.07">
+            <p class="text-xs text-gray-400 mt-1">同步速率需精確至 3.07 km/s</p>
+        </div>
+
+        <div class="mb-4">
+            <label>衛星質量 ($10^3$ kg) <span id="m-val" class="label-val">1.0</span></label>
+            <input type="range" id="m-slider" min="0.1" max="10" step="0.1" value="1.0">
+        </div>
+
+        <div class="mb-6">
+            <label>發射高度 (km) <span id="h-val" class="label-val">35786</span></label>
+            <input type="range" id="h-slider" min="30000" max="40000" step="1" value="35786">
+            <p class="text-xs text-gray-400 mt-1">同步高度：35,786 - 35,788 km</p>
+        </div>
+
+        <button id="reset-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold transition text-lg shadow-lg">🚀 執行發射任務</button>
+        
+        <div class="mt-4 text-xs text-gray-500">
+            * 模擬倍率：x12000 (超快速驗證)<br>
+            * 若速度超過逃脫速度，顯示「已離開地球」
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-label">⏳ 運行週期 (T)</span>
+            <span id="period-display" class="stat-value text-green-400 font-mono">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">🚀 軌道速度 (v)</span>
+            <span id="speed-display" class="stat-value text-yellow-400 font-mono">-- km/s</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">📡 當前高度 (h)</span>
+            <span id="alt-display" class="stat-value text-blue-400 font-mono">-- km</span>
+        </div>
+    </div>
+
+    <div id="congrats-msg" class="congrats">
+        <h2 class="text-4xl font-black mb-3">同步成功！🎉</h2>
+        <p class="text-2xl font-bold">已進入地球同步軌道 (GEO)</p>
+        <p class="text-lg mt-3 opacity-90">高度: 35,786~35,788 km | 速度: 3.07 km/s</p>
+    </div>
+    
+    <div id="status-hint" class="waiting-overlay">🛰️ 衛星待命中，請設定參數後點擊發射</div>
+
+    <div class="scale-info">
+        提示：虛線圈標記地球半徑倍數 ($R_e \approx 6,371$ km)<br>
+        同步軌道高度約為 $5.6 R_e$
+    </div>
+
+    <canvas id="simCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const congratsMsg = document.getElementById('congrats-msg');
+    const statusHint = document.getElementById('status-hint');
+
+    // 物理常數
+    const G = 6.67430e-11;
+    const M_EARTH = 5.972e24;
+    const R_EARTH = 6371000; 
+    const DAY_SECONDS = 86400; 
+
+    let scale = 150000; 
+
+    // 狀態變數
+    let satellite = {
+        x: 0, y: 0, vx: 0, vy: 0, m: 1000,
+        path: [], visible: false
+    };
+
+    let launchAnim = {
+        active: false,
+        progress: 0, 
+        targetX: 0,
+        targetY: 0,
+        targetV: 0
+    };
+
+    let earthRotation = 0;
+    let isRunning = false; 
+    let lastTime = 0;
+    let simTimeAccumulator = 0;
+    let periodStartTime = 0;
+    let currentPeriod = 0;
+    let statusMessage = "";
+
+    function init() {
+        resize();
+        prepareSatellite();
+        requestAnimationFrame(animate);
+    }
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+
+    function prepareSatellite() {
+        const h_val = parseFloat(document.getElementById('h-slider').value) * 1000;
+        const targetR = R_EARTH + h_val;
+        
+        scale = (targetR * 2.8) / Math.min(canvas.width, canvas.height);
+        
+        satellite.visible = false;
+        satellite.path = [];
+        isRunning = false;
+        launchAnim.active = false;
+        launchAnim.progress = 0;
+        statusMessage = "";
+        congratsMsg.style.display = 'none';
+        statusHint.style.display = 'block';
+        
+        document.getElementById('period-display').innerText = "--";
+        document.getElementById('speed-display').innerText = "準備發射";
+        document.getElementById('alt-display').innerText = Math.round(h_val/1000) + " km";
+    }
+
+    function startLaunchSequence() {
+        const v_val = parseFloat(document.getElementById('v-slider').value) * 1000;
+        const m_val = parseFloat(document.getElementById('m-slider').value) * 1000;
+        const h_val = parseFloat(document.getElementById('h-slider').value) * 1000;
+        const targetR = R_EARTH + h_val;
+        
+        launchAnim.active = true;
+        launchAnim.progress = 0;
+        launchAnim.targetX = targetR;
+        launchAnim.targetY = 0;
+        launchAnim.targetV = v_val;
+        launchAnim.m = m_val;
+
+        satellite.visible = false;
+        satellite.path = [];
+        simTimeAccumulator = 0;
+        periodStartTime = 0;
+        currentPeriod = 0;
+        statusMessage = "";
+        congratsMsg.style.display = 'none';
+        statusHint.style.display = 'none';
+        isRunning = true;
+    }
+
+    function finalizeLaunch() {
+        launchAnim.active = false;
+        satellite.x = launchAnim.targetX;
+        satellite.y = launchAnim.targetY;
+        satellite.vx = 0;
+        satellite.vy = launchAnim.targetV;
+        satellite.m = launchAnim.m;
+        satellite.visible = true;
+        periodStartTime = simTimeAccumulator;
+    }
+
+    function drawRMarkers() {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        ctx.textAlign = "center";
+        ctx.font = "12px sans-serif";
+        
+        // 畫出 1R 到 7R 的標記
+        for (let i = 1; i <= 7; i++) {
+            const radiusPx = (R_EARTH * i) / scale;
+            
+            // 畫虛線圓圈
+            ctx.beginPath();
+            ctx.setLineDash([5, 8]);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.arc(centerX, centerY, radiusPx, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]); // 重置虛線
+
+            // 標註標籤
+            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.fillText(`${i} Re`, centerX + radiusPx, centerY - 5);
+        }
+    }
+
+    function drawEarth() {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const rPx = R_EARTH / scale;
+
+        // 地球大氣發光感
+        const gradient = ctx.createRadialGradient(centerX, centerY, rPx * 0.8, centerX, centerY, rPx * 1.4);
+        gradient.addColorStop(0, 'rgba(30, 64, 175, 0.4)');
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, rPx * 1.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(earthRotation);
+        ctx.fillStyle = '#1e40af'; // 海洋
+        ctx.beginPath();
+        ctx.arc(0, 0, rPx, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#15803d'; // 簡易陸地
+        for(let i=0; i<6; i++) {
+            ctx.beginPath();
+            ctx.arc(rPx * 0.5 * Math.cos(i*1.1), rPx * 0.3 * Math.sin(i*1.1), rPx * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    function drawRocket(x, y, angle, isLaunching) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.moveTo(15, 0);
+        ctx.lineTo(-5, 6);
+        ctx.lineTo(-5, -6);
+        ctx.closePath();
+        ctx.fill();
+
+        if (isLaunching) {
+            ctx.fillStyle = '#f97316';
+            ctx.beginPath();
+            ctx.moveTo(-5, 0);
+            ctx.lineTo(-20 - Math.random()*15, 0);
+            ctx.strokeStyle = '#fbbf24';
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function updatePhysics(dt) {
+        if (!isRunning) return;
+
+        if (launchAnim.active) {
+            launchAnim.progress += dt * 1.5;
+            if (launchAnim.progress >= 1) finalizeLaunch();
+            earthRotation += (Math.PI * 2 / DAY_SECONDS) * dt;
+            simTimeAccumulator += dt;
+            return;
+        }
+
+        const substeps = 300; 
+        const subDt = dt / substeps;
+
+        for (let i = 0; i < substeps; i++) {
+            const rSq = satellite.x * satellite.x + satellite.y * satellite.y;
+            const r = Math.sqrt(rSq);
+            
+            if (r > R_EARTH * 30) {
+                statusMessage = "ESCAPE";
+                isRunning = false;
+                return;
+            }
+
+            const force = (G * M_EARTH * satellite.m) / rSq;
+            const ax = -(force * (satellite.x / r)) / satellite.m;
+            const ay = -(force * (satellite.y / r)) / satellite.m;
+
+            satellite.vx += ax * subDt;
+            satellite.vy += ay * subDt;
+            
+            const prevY = satellite.y;
+            satellite.x += satellite.vx * subDt;
+            satellite.y += satellite.vy * subDt;
+
+            if (prevY < 0 && satellite.y >= 0 && satellite.x > 0) {
+                currentPeriod = simTimeAccumulator - periodStartTime;
+                periodStartTime = simTimeAccumulator;
+                checkSynchronous(currentPeriod);
+            }
+            simTimeAccumulator += subDt;
+        }
+
+        earthRotation += (Math.PI * 2 / DAY_SECONDS) * dt;
+        
+        if (satellite.visible && Math.floor(simTimeAccumulator / 100) > Math.floor((simTimeAccumulator - dt) / 100)) {
+            satellite.path.push({x: satellite.x, y: satellite.y});
+            if (satellite.path.length > 3000) satellite.path.shift();
+        }
+    }
+
+    function checkSynchronous(p) {
+        const currentR = Math.sqrt(satellite.x*satellite.x + satellite.y*satellite.y);
+        const h_km = (currentR - R_EARTH) / 1000;
+        const v_kms = Math.sqrt(satellite.vx*satellite.vx + satellite.vy*satellite.vy) / 1000;
+        const isHeightOk = h_km >= 35780 && h_km <= 35795;
+        const isSpeedOk = v_kms >= 3.06 && v_kms <= 3.08;
+        if (isHeightOk && isSpeedOk) { 
+            congratsMsg.style.display = 'block';
+        }
+    }
+
+    function formatTime(seconds) {
+        if (isNaN(seconds) || seconds <= 0) return "--";
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return `${h}小時 ${m}分 ${s}秒`;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        drawRMarkers(); // 畫比例標記
+        drawEarth();
+
+        if (!isRunning && !launchAnim.active) {
+            const h_val = parseFloat(document.getElementById('h-slider').value) * 1000;
+            const previewR = R_EARTH + h_val;
+            const px = centerX + (previewR / scale);
+            const py = centerY;
+            drawRocket(px, py, -Math.PI/2, false);
+        }
+
+        if (launchAnim.active) {
+            const p = launchAnim.progress;
+            const curR = R_EARTH + (launchAnim.targetX - R_EARTH) * p;
+            const angle = (Math.PI / 2) * (1 - p); 
+            const curX = centerX + (curR / scale) * Math.cos(angle);
+            const curY = centerY - (curR / scale) * Math.sin(angle);
+            drawRocket(curX, curY, -angle, true);
+            
+            document.getElementById('alt-display').innerText = Math.round((curR - R_EARTH)/1000) + " km";
+            document.getElementById('speed-display').innerText = (launchAnim.targetV * p / 1000).toFixed(2) + " km/s";
+        }
+
+        if (satellite.visible) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(100, 200, 255, 0.5)';
+            ctx.lineWidth = 1.5;
+            satellite.path.forEach((p, i) => {
+                const px = centerX + p.x / scale;
+                const py = centerY + p.y / scale;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.stroke();
+
+            const satX = centerX + satellite.x / scale;
+            const satY = centerY + satellite.y / scale;
+            const angle = Math.atan2(satellite.vy, satellite.vx);
+            drawRocket(satX, satY, angle, false);
+
+            const currentR = Math.sqrt(satellite.x*satellite.x + satellite.y*satellite.y);
+            const currentSpeed = Math.sqrt(satellite.vx*satellite.vx + satellite.vy*satellite.vy) / 1000;
+            
+            document.getElementById('period-display').innerText = statusMessage === "ESCAPE" ? "軌道已開放" : formatTime(currentPeriod);
+            document.getElementById('speed-display').innerText = currentSpeed.toFixed(2) + " km/s";
+            document.getElementById('alt-display').innerText = Math.round((currentR - R_EARTH) / 1000) + " km";
+
+            if (currentR < R_EARTH) {
+                showOverlay("⚠️ 衛星已墮入大氣層 ⚠️", "rgba(220, 38, 38, 0.75)");
+                isRunning = false;
+            } else if (statusMessage === "ESCAPE") {
+                showOverlay("🚀 衛星已離開地球 🚀", "rgba(55, 65, 81, 0.8)");
+                isRunning = false;
+            }
+        }
+    }
+
+    function showOverlay(text, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(0,0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.font = "bold 42px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(text, canvas.width/2, canvas.height/2 - 50);
+        ctx.font = "24px sans-serif";
+        ctx.fillText("請點擊左側按鈕重新發射", canvas.width/2, canvas.height/2 + 20);
+    }
+
+    function animate(time) {
+        if (!lastTime) lastTime = time;
+        const deltaTime = (time - lastTime) / 1000; 
+        lastTime = time;
+
+        const simSpeed = launchAnim.active ? 1.5 : 12000; 
+        updatePhysics(Math.min(deltaTime, 0.05) * simSpeed);
+
+        draw();
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', resize);
+    document.getElementById('v-slider').oninput = function() { document.getElementById('v-val').innerText = this.value; prepareSatellite(); };
+    document.getElementById('m-slider').oninput = function() { document.getElementById('m-val').innerText = this.value; prepareSatellite(); };
+    document.getElementById('h-slider').oninput = function() { document.getElementById('h-val').innerText = this.value; prepareSatellite(); };
+    
+    document.getElementById('reset-btn').onclick = () => {
+        startLaunchSequence();
+    };
+
+    init();
+</script>
+</body>
+</html>
