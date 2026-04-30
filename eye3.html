@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理光學模擬器 - 完整光路圖 (cm)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #fffaf5; font-family: sans-serif; }
+        canvas { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); touch-action: none; border: 1px solid #fbd38d; }
+        .control-panel { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        input[type="range"] { accent-color: #ed8936; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-orange-800">遠視與老花矯正模擬器</h1>
+            <p class="text-orange-600 mt-2">單位：公分 (cm) | 觀察眼鏡焦距對視網膜成像的影響</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="lg:col-span-1 space-y-6">
+                <div class="control-panel border-t-4 border-orange-500">
+                    <h2 class="font-bold text-lg mb-4 border-b pb-2">實驗參數 (cm)</h2>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-orange-700">物距 (u)：物體到眼鏡距離</label>
+                        <input type="range" id="objPos" min="10" max="100" value="33" class="w-full h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1"><span id="uVal">33</span> cm</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-blue-700">眼鏡焦距 (f)：凸透鏡強度</label>
+                        <input type="range" id="focalLen" min="20" max="200" value="50" class="w-full h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1"><span id="fVal">50</span> cm</div>
+                    </div>
+
+                    <div class="mb-4 border-t pt-4">
+                        <label class="block text-sm font-medium text-emerald-600 font-bold">人眼近點 (Near Point)</label>
+                        <input type="range" id="nearPoint" min="15" max="150" value="40" class="w-full h-2 bg-emerald-100 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1"><span id="npVal">40</span> cm</div>
+                        <p class="text-[10px] text-gray-400 mt-1">* 正常視力約 25cm，老花眼會變長</p>
+                    </div>
+
+                    <div class="pt-4 border-t bg-slate-50 p-2 rounded">
+                        <div class="text-xs font-bold text-slate-600">生理數據計算：</div>
+                        <div class="text-[11px] text-slate-500">虛像距離 (v)：<span id="vData" class="font-mono text-orange-600">-</span></div>
+                        <div class="text-[11px] text-slate-500">水晶體調節負擔：<span id="accData" class="font-mono text-blue-600">-</span></div>
+                    </div>
+
+                    <div class="pt-4">
+                        <div id="statusMsg" class="p-3 rounded text-sm font-medium text-center"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-3 flex flex-col">
+                <canvas id="opticsCanvas" class="w-full h-[550px]"></canvas>
+                <div class="mt-4 grid grid-cols-2 md:grid-cols-4 text-center text-[10px] md:text-xs font-semibold text-gray-600 gap-2">
+                    <div>🔵 閱讀物體 (u)</div>
+                    <div>🟠 輔助虛像 (v)</div>
+                    <div>👁️ 視網膜成像 (Retina)</div>
+                    <div>🟢 近點範圍</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('opticsCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const objInput = document.getElementById('objPos');
+        const focalInput = document.getElementById('focalLen');
+        const nearPointInput = document.getElementById('nearPoint');
+        
+        const uDisp = document.getElementById('uVal');
+        const fDisp = document.getElementById('fVal');
+        const npDisp = document.getElementById('npVal');
+        const vData = document.getElementById('vData');
+        const accData = document.getElementById('accData');
+        const statusMsg = document.getElementById('statusMsg');
+
+        // 縮放比例：1cm = 8px (為了在畫面上顯示較美觀)
+        const SCALE = 8;
+
+        function resize() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = 550;
+            draw();
+        }
+
+        window.addEventListener('resize', resize);
+
+        function drawEye(x, y, r, thicknessFactor) {
+            // 眼球
+            ctx.beginPath();
+            ctx.fillStyle = '#fffdfa';
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // 視網膜
+            ctx.beginPath();
+            ctx.strokeStyle = '#fca5a5';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.arc(x, y, r, -Math.PI * 0.2, Math.PI * 0.2);
+            ctx.stroke();
+
+            // 水晶體 (厚度已減半優化)
+            const baseThickness = 2; 
+            const maxExtra = 13; 
+            const currentThickness = baseThickness + (maxExtra * thicknessFactor);
+            const baseHeight = 44;
+            const currentHeight = baseHeight - (thicknessFactor * 6);
+            
+            const lensPosX = x - r + 25;
+            
+            const gradient = ctx.createRadialGradient(lensPosX, y, 2, lensPosX, y, currentThickness * 2);
+            gradient.addColorStop(0, 'rgba(237, 137, 54, 0.5)');
+            gradient.addColorStop(1, 'rgba(237, 137, 54, 0.1)');
+
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(237, 137, 54, ${0.4 + thicknessFactor * 0.4})`;
+            ctx.fillStyle = gradient;
+            ctx.lineWidth = 1.2;
+            ctx.ellipse(lensPosX, y, currentThickness, currentHeight, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            return { lensPosX, retinaX: x + r - 5 };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const centerY = canvas.height / 2;
+            const eyeCenterX = canvas.width - 150;
+            const eyeRadius = 100;
+            const glassLensX = eyeCenterX - eyeRadius - 80; 
+            
+            const u = parseFloat(objInput.value); // cm
+            const f = parseFloat(focalInput.value); // cm
+            const nearPoint = parseFloat(nearPointInput.value); // cm
+            
+            uDisp.innerText = u;
+            fDisp.innerText = f;
+            npDisp.innerText = nearPoint;
+
+            // 計算虛像 v (單位 cm)
+            // 1/f = 1/u + 1/v
+            let v = (u * f) / (u - f);
+            const imageDist = Math.abs(v);
+            vData.innerText = `${imageDist.toFixed(1)} cm`;
+
+            // 計算調節率
+            let thicknessFactor = 0;
+            let canFocus = false;
+            if (v < 0) { 
+                if (imageDist >= nearPoint) {
+                    const relaxDist = 300; // 在 3 公尺外視為放鬆
+                    thicknessFactor = Math.max(0, 1 - (imageDist - nearPoint) / (relaxDist - nearPoint));
+                    canFocus = true;
+                } else {
+                    thicknessFactor = 1;
+                    canFocus = false;
+                }
+            }
+
+            accData.innerText = `${Math.round(thicknessFactor * 100)} %`;
+
+            // 繪製近點範圍
+            const npPx = nearPoint * SCALE;
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.03)';
+            ctx.fillRect(0, 0, glassLensX - npPx, canvas.height);
+            ctx.strokeStyle = '#6ee7b7';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.moveTo(glassLensX - npPx, 40); ctx.lineTo(glassLensX - npPx, canvas.height-40); ctx.stroke();
+            ctx.setLineDash([]);
+
+            const eyeParts = drawEye(eyeCenterX, centerY, eyeRadius, thicknessFactor);
+            const crystalX = eyeParts.lensPosX;
+            const retinaTargetX = eyeParts.retinaX;
+
+            // 繪製眼鏡
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#3b82f6';
+            ctx.beginPath(); ctx.moveTo(glassLensX, centerY-80); ctx.lineTo(glassLensX, centerY+80); ctx.stroke();
+            drawArrow(glassLensX, centerY-80, 1, '#3b82f6'); 
+            drawArrow(glassLensX, centerY+80, -1, '#3b82f6');
+
+            // 繪製實物 (u)
+            const objPxX = glassLensX - (u * SCALE);
+            const objH = 40;
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(objPxX, centerY); ctx.lineTo(objPxX, centerY - objH); ctx.stroke();
+            drawArrow(objPxX, centerY-objH, 1, '#3b82f6');
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(`實物 (${u}cm)`, objPxX - 25, centerY + 20);
+
+            // 光路繪製
+            if (v < 0) {
+                const imgPxX = glassLensX - (imageDist * SCALE);
+                const imgH = objH * (imageDist / u);
+                
+                const entryPoints = [-40, 0, 40];
+
+                entryPoints.forEach(offset => {
+                    const glassEntryY = centerY + offset;
+                    
+                    // 1. 物體 -> 眼鏡
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+                    ctx.setLineDash([]);
+                    ctx.lineWidth = 1.2;
+                    ctx.moveTo(objPxX, centerY - objH);
+                    ctx.lineTo(glassLensX, glassEntryY);
+                    ctx.stroke();
+
+                    // 2. 眼鏡 -> 水晶體
+                    const crystalEntryY = centerY + (offset * 0.8);
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(234, 179, 8, 0.7)';
+                    ctx.moveTo(glassLensX, glassEntryY);
+                    ctx.lineTo(crystalX, crystalEntryY);
+                    ctx.stroke();
+
+                    // 3. 虛輔助線 (虛像到眼鏡)
+                    ctx.beginPath();
+                    ctx.setLineDash([3, 3]);
+                    ctx.strokeStyle = 'rgba(249, 115, 22, 0.2)';
+                    ctx.moveTo(imgPxX, centerY - imgH);
+                    ctx.lineTo(glassLensX, glassEntryY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // 4. 水晶體 -> 視網膜
+                    let focusX = retinaTargetX;
+                    if (!canFocus) {
+                        focusX = retinaTargetX + (nearPoint - imageDist) * SCALE * 0.3;
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.strokeStyle = canFocus ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.moveTo(crystalX, crystalEntryY);
+                    const slope = (centerY - crystalEntryY) / (focusX - crystalX);
+                    ctx.lineTo(retinaTargetX, crystalEntryY + (retinaTargetX - crystalX) * slope);
+                    ctx.stroke();
+                });
+
+                // 繪製虛像 (v)
+                ctx.strokeStyle = '#f97316';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(imgPxX, centerY); ctx.lineTo(imgPxX, centerY - imgH); ctx.stroke();
+                ctx.setLineDash([]);
+                drawArrow(imgPxX, centerY-imgH, 1, '#f97316');
+                ctx.fillStyle = '#f97316';
+                ctx.fillText(`虛像 (${imageDist.toFixed(1)}cm)`, imgPxX - 35, centerY + 40);
+            }
+
+            // 更新訊息
+            if (canFocus) {
+                statusMsg.innerText = "✅ 成像清晰";
+                statusMsg.className = "p-3 rounded text-sm font-medium bg-green-100 text-green-700 border border-green-200";
+            } else if (v > 0) {
+                statusMsg.innerText = "⚠️ 超過焦距 (無法形成虛像)";
+                statusMsg.className = "p-3 rounded text-sm font-medium bg-yellow-100 text-yellow-700 border border-yellow-200";
+            } else {
+                statusMsg.innerText = "❌ 影像模糊 (虛像在近點內)";
+                statusMsg.className = "p-3 rounded text-sm font-medium bg-red-50 text-red-700 border border-red-100";
+            }
+        }
+
+        function drawArrow(x, y, dir, color='#475569') {
+            const size = 10;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.moveTo(x - size/2, y + dir * size);
+            ctx.lineTo(x, y);
+            ctx.lineTo(x + size/2, y + dir * size);
+            ctx.stroke();
+        }
+
+        [objInput, focalInput, nearPointInput].forEach(el => el.addEventListener('input', draw));
+        resize();
+    </script>
+</body>
+</html>
