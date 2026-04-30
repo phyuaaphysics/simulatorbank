@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雷射繞射實驗模擬器 - 白色介面版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* 整體改為淺色介面 */
+        body { background-color: #f1f5f9; color: #1e293b; font-family: system-ui, -apple-system, sans-serif; }
+        
+        /* 容器與區塊 */
+        .canvas-container { background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #cbd5e1; position: relative; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .config-card { background: #ffffff; border-radius: 12px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgb(0 0 0 / 0.1); }
+        
+        /* 實驗結果部分保留黑色背景 */
+        .dark-section { background-color: #0f172a !important; color: #f8fafc; border: 1px solid #334155; }
+        
+        input[type=range] { accent-color: #3b82f6; }
+        
+        .data-table th { @apply p-2 text-left text-xs font-bold text-slate-500 border-b border-slate-200; }
+        .data-table td { @apply p-2 text-xs border-b border-slate-100; transition: all 0.3s; }
+        .new-row { background-color: rgba(59, 130, 246, 0.1); animation: fadeOut 2s forwards; }
+        @keyframes fadeOut { from { background-color: rgba(59, 130, 246, 0.2); } to { background-color: transparent; } }
+        
+        #measuring-overlay { 
+            position: absolute; pointer-events: none; border-left: 2px dashed #fbbf24; height: 100%; top: 0; 
+            display: none; align-items: center; justify-content: center; z-index: 10;
+        }
+        .m-label {
+            position: absolute; transform: translateX(-50%); font-size: 10px; font-weight: bold; color: #64748b;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-6 flex justify-between items-end">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800">雷射繞射實驗：模擬與分析</h1>
+                <p class="text-slate-500 text-sm">尺標由中央 $m=0$ 開始移動，請觀察數據與圖形的對應關係</p>
+            </div>
+            <div id="status-indicator" class="px-3 py-1 rounded-full bg-slate-200 text-xs text-slate-600 font-medium">待機中</div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- 控制區 (白色介面) -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="config-card p-5">
+                    <h2 class="text-lg font-semibold mb-4 text-slate-700">實驗參數設置</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs mb-1 text-slate-500">雷射波長 (λ): <span id="label-lambda" class="text-blue-600 font-bold">?</span> nm</label>
+                            <input type="range" id="input-lambda" min="400" max="700" value="532" class="w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1 text-slate-500">光柵密度 $N$: <span id="label-n" class="text-blue-600 font-bold">300</span> lines/mm</label>
+                            <input type="range" id="input-n" min="100" max="600" step="50" value="300" class="w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1 text-slate-500">屏幕距離 $D$: <span id="label-D" class="text-blue-600 font-bold">1.0</span> m</label>
+                            <input type="range" id="input-D" min="0.5" max="2.0" step="0.1" value="1.2" class="w-full">
+                        </div>
+                    </div>
+                    <button id="btn-record" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                        <span>開始自動測量動畫</span>
+                    </button>
+                    <button id="btn-clear" class="w-full mt-2 text-slate-400 text-xs hover:text-slate-600">重置實驗數據</button>
+                </div>
+
+                <div class="config-card p-5">
+                    <h2 class="text-sm font-bold mb-3 uppercase text-slate-500">實驗紀錄表</h2>
+                    <div class="max-h-64 overflow-y-auto">
+                        <table class="w-full data-table" id="data-table">
+                            <thead>
+                                <tr><th>m</th><th>y (cm)</th><th>tanθ</th><th>sinθ</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 視覺與結果分析區 -->
+            <div class="lg:col-span-8 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- 光路圖 (白色) -->
+                    <div class="canvas-container h-48">
+                        <div class="absolute top-2 left-2 text-[10px] text-slate-400 font-bold uppercase">實驗光路示意圖</div>
+                        <canvas id="setupCanvas"></canvas>
+                    </div>
+                    <!-- 屏幕 (保留黑色) -->
+                    <div class="canvas-container h-48 bg-black border-slate-800" id="screen-container">
+                        <div class="absolute top-2 left-2 text-[10px] text-slate-500 font-bold uppercase">屏幕投影測量 (Dark Mode)</div>
+                        <div id="markings-layer" class="absolute w-full h-full pointer-events-none"></div>
+                        <div id="measuring-overlay">
+                            <div class="bg-yellow-400 text-slate-900 text-[10px] font-bold px-1.5 py-0.5 rounded -mt-9 whitespace-nowrap shadow-lg" id="measure-label">y = 0.00 cm</div>
+                        </div>
+                        <canvas id="screenCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- 回歸分析區 (保留黑色背景) -->
+                <div class="dark-section p-5 rounded-xl shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-blue-300">數據分析與回歸直線</h2>
+                        <div id="regression-result" class="text-sm font-mono text-green-400 opacity-0 transition-opacity duration-500">數據採集中...</div>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="chartCanvas"></canvas>
+                    </div>
+                    <div id="result-panel" class="mt-4 p-4 bg-white/5 rounded-lg border border-white/10 flex justify-around items-center opacity-30 transition-all duration-700">
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">推算波長 (λ)</p>
+                            <p class="text-2xl font-bold text-white"><span id="calc-lambda">--</span> <span class="text-sm font-normal text-slate-400">nm</span></p>
+                        </div>
+                        <div class="h-10 w-px bg-white/10"></div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">量測誤差率</p>
+                            <p id="error-rate" class="text-2xl font-bold text-slate-500">-- %</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const setupCanvas = document.getElementById('setupCanvas');
+        const screenCanvas = document.getElementById('screenCanvas');
+        const chartCanvas = document.getElementById('chartCanvas');
+        const ctxS = setupCanvas.getContext('2d');
+        const ctxP = screenCanvas.getContext('2d');
+        const overlay = document.getElementById('measuring-overlay');
+        const measureLabel = document.getElementById('measure-label');
+        const statusInd = document.getElementById('status-indicator');
+        const resultPanel = document.getElementById('result-panel');
+        const regressionText = document.getElementById('regression-result');
+        const markingsLayer = document.getElementById('markings-layer');
+
+        let experimentalData = [];
+        let chart = null;
+        let isMeasuring = false;
+
+        function initChart() {
+            // 設置 Chart.js 的全局字體顏色為淺色(配合黑色背景)
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.borderColor = '#334155';
+
+            chart = new Chart(chartCanvas, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: '數據點',
+                        data: [],
+                        backgroundColor: '#fbbf24',
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }, {
+                        label: '擬合直線',
+                        data: [],
+                        type: 'line',
+                        borderColor: '#22c55e',
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 0,
+                        hidden: true 
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 800 },
+                    scales: {
+                        x: { type: 'linear', min: 0, max: 4, title: { display: true, text: '繞射級數 m' } },
+                        y: { min: 0, max: 0.8, title: { display: true, text: 'sin(θ)' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function getPhysics() {
+            return {
+                lambda: parseFloat(document.getElementById('input-lambda').value) * 1e-9,
+                N: parseFloat(document.getElementById('input-n').value) * 1000,
+                D: parseFloat(document.getElementById('input-D').value),
+                color: `hsl(${(1 - (parseFloat(document.getElementById('input-lambda').value)-400)/300)*240}, 100%, 50%)`
+            };
+        }
+
+        function drawScene() {
+            const { lambda, N, D, color } = getPhysics();
+            const d = 1 / N;
+            
+            document.getElementById('label-lambda').innerText = document.getElementById('input-lambda').value;
+            document.getElementById('label-n').innerText = document.getElementById('input-n').value;
+            document.getElementById('label-D').innerText = D.toFixed(1);
+
+            ctxS.clearRect(0, 0, setupCanvas.width, setupCanvas.height);
+            ctxP.clearRect(0, 0, screenCanvas.width, screenCanvas.height);
+            markingsLayer.innerHTML = '';
+
+            const w = setupCanvas.width, h = setupCanvas.height;
+            const gx = w * 0.2, sx = w - 40, cy = h / 2;
+
+            // 繪製光路圖輔助線
+            ctxS.strokeStyle = '#e2e8f0';
+            ctxS.setLineDash([5, 5]);
+            ctxS.beginPath(); ctxS.moveTo(gx, cy); ctxS.lineTo(sx, cy); ctxS.stroke();
+            ctxS.setLineDash([]);
+
+            // 繪製亮點
+            for(let m=-3; m<=3; m++) {
+                const sinT = (m * lambda) / d;
+                if(Math.abs(sinT) > 0.9) continue;
+                const theta = Math.asin(sinT);
+                const y = D * Math.tan(theta);
+                
+                const visualY = cy + (y * 60); 
+                ctxS.strokeStyle = color;
+                ctxS.globalAlpha = m === 0 ? 1 : 0.4;
+                ctxS.lineWidth = m === 0 ? 3 : 1.5;
+                ctxS.beginPath(); ctxS.moveTo(gx, cy); ctxS.lineTo(sx, visualY); ctxS.stroke();
+
+                const px = screenCanvas.width/2 + (y * 150);
+                ctxP.fillStyle = color;
+                ctxP.shadowBlur = 15; ctxP.shadowColor = color;
+                ctxP.beginPath(); ctxP.arc(px, screenCanvas.height/2, 4, 0, Math.PI*2); ctxP.fill();
+                ctxP.shadowBlur = 0;
+
+                if (m >= 0) {
+                    const label = document.createElement('div');
+                    label.className = 'm-label';
+                    label.style.left = (px / window.devicePixelRatio) + 'px';
+                    label.style.top = '75%';
+                    label.style.color = '#94a3b8';
+                    label.innerText = `m=${m}`;
+                    markingsLayer.appendChild(label);
+                }
+            }
+        }
+
+        async function startMeasurement() {
+            if(isMeasuring) return;
+            
+            experimentalData = [];
+            document.querySelector('#data-table tbody').innerHTML = "";
+            chart.data.datasets[1].hidden = true;
+            chart.data.datasets[0].data = [];
+            resultPanel.classList.add('opacity-30');
+            regressionText.classList.add('opacity-0');
+            chart.update();
+
+            isMeasuring = true;
+            statusInd.innerText = "自動測量中...";
+            statusInd.className = "px-3 py-1 rounded-full bg-blue-100 text-xs text-blue-700 font-bold animate-pulse";
+            document.getElementById('btn-record').disabled = true;
+
+            const { lambda, N, D } = getPhysics();
+            const d = 1 / N;
+            const centerX = screenCanvas.width / 2;
+
+            overlay.style.display = 'flex';
+            
+            // 標尺從 m=0 開始
+            await animateMeasure(centerX, 0, 800);
+            await new Promise(r => setTimeout(r, 400));
+
+            for(let m=1; m<=3; m++) {
+                const sinT = (m * lambda) / d;
+                const theta = Math.asin(sinT);
+                const yReal = D * Math.tan(theta);
+                const targetPx = centerX + (yReal * 150);
+
+                await animateMeasure(targetPx, yReal, 1000);
+
+                // 模擬讀取誤差
+                const noise = (Math.random() - 0.5) * 0.0005; 
+                const yMeasured = yReal + noise;
+                const tanTheta = yMeasured / D;
+                const sinTheta = Math.sin(Math.atan(tanTheta));
+
+                experimentalData.push({ m, y: yMeasured, sinTheta });
+                updatePointOnly(m, yMeasured, tanTheta, sinTheta);
+                
+                await new Promise(r => setTimeout(r, 400));
+            }
+
+            await performFitting();
+
+            overlay.style.display = 'none';
+            isMeasuring = false;
+            statusInd.innerText = "分析完成";
+            statusInd.className = "px-3 py-1 rounded-full bg-green-100 text-xs text-green-700 font-bold";
+            document.getElementById('btn-record').disabled = false;
+        }
+
+        function animateMeasure(targetX, yValue, duration = 1000) {
+            return new Promise(resolve => {
+                const currentLeft = overlay.style.left ? parseFloat(overlay.style.left) : (screenCanvas.width/2);
+                let start = null;
+
+                function step(timestamp) {
+                    if (!start) start = timestamp;
+                    const progress = Math.min((timestamp - start) / duration, 1);
+                    const currentX = currentLeft + (targetX - currentLeft) * progress;
+                    
+                    overlay.style.left = currentX + 'px';
+                    const currentYCm = ((currentX - (screenCanvas.width/2)) / 150) * 100;
+                    measureLabel.innerText = `y = ${Math.abs(currentYCm).toFixed(2)} cm`;
+
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    } else {
+                        resolve();
+                    }
+                }
+                window.requestAnimationFrame(step);
+            });
+        }
+
+        function updatePointOnly(m, y, tan, sin) {
+            const tbody = document.querySelector('#data-table tbody');
+            const row = document.createElement('tr');
+            row.className = "new-row";
+            row.innerHTML = `<td class="font-bold">${m}</td><td>${(y*100).toFixed(2)}</td><td>${tan.toFixed(4)}</td><td class="text-blue-600 font-mono">${sin.toFixed(4)}</td>`;
+            tbody.prepend(row);
+
+            chart.data.datasets[0].data = experimentalData.map(d => ({ x: d.m, y: d.sinTheta }));
+            chart.update('none');
+        }
+
+        async function performFitting() {
+            if (experimentalData.length >= 2) {
+                const n = experimentalData.length;
+                let sumMS = 0, sumM2 = 0;
+                experimentalData.forEach(d => {
+                    sumMS += d.m * d.sinTheta; sumM2 += d.m * d.m;
+                });
+                
+                const slope = sumMS / sumM2; 
+                const dConst = 1 / (parseFloat(document.getElementById('input-n').value) * 1000);
+                const calcLambda = slope * dConst * 1e9;
+                const actualLambda = parseFloat(document.getElementById('input-lambda').value);
+                const error = Math.abs((calcLambda - actualLambda) / actualLambda * 100);
+
+                document.getElementById('calc-lambda').innerText = calcLambda.toFixed(1);
+                document.getElementById('error-rate').innerText = error.toFixed(2) + " %";
+                document.getElementById('error-rate').className = "text-2xl font-bold " + (error < 1 ? "text-green-400" : "text-yellow-400");
+                regressionText.innerText = `最佳擬合斜率 (λ/d): ${slope.toFixed(5)}`;
+
+                chart.data.datasets[1].data = [{x: 0, y: 0}, {x: 4, y: slope * 4}];
+                chart.data.datasets[1].hidden = false;
+                chart.update(); 
+
+                regressionText.classList.remove('opacity-0');
+                resultPanel.classList.remove('opacity-30');
+                resultPanel.classList.add('border-white/20');
+            }
+        }
+
+        function resize() {
+            const ratio = window.devicePixelRatio;
+            [setupCanvas, screenCanvas].forEach(c => {
+                c.width = c.clientWidth * ratio;
+                c.height = c.clientHeight * ratio;
+            });
+            drawScene();
+        }
+
+        document.getElementById('btn-record').addEventListener('click', startMeasurement);
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            experimentalData = [];
+            document.querySelector('#data-table tbody').innerHTML = "";
+            chart.data.datasets[0].data = [];
+            chart.data.datasets[1].data = [];
+            chart.data.datasets[1].hidden = true;
+            chart.update();
+            document.getElementById('calc-lambda').innerText = "--";
+            document.getElementById('error-rate').innerText = "-- %";
+            regressionText.classList.add('opacity-0');
+            resultPanel.classList.add('opacity-30');
+            statusInd.innerText = "待機中";
+            statusInd.className = "px-3 py-1 rounded-full bg-slate-200 text-xs text-slate-600 font-medium";
+        });
+
+        ['input-lambda', 'input-n', 'input-D'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawScene);
+        });
+
+        window.addEventListener('resize', resize);
+        window.onload = () => { initChart(); resize(); };
+    </script>
+</body>
+</html>
