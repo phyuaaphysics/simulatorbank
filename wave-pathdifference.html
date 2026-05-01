@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>水波干涉實驗模擬</title>
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --accent-orange: #ff9500;
+            --success-green: #34c759;
+            --danger-red: #ff3b30;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            background: var(--bg-gradient); 
+            min-height: 100vh; margin: 0; padding: 20px;
+            color: var(--text-main);
+        }
+
+        .container {
+            max-width: 960px; width: 100%; 
+            background: var(--card-bg);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 25px; border-radius: 24px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.06);
+            box-sizing: border-box;
+        }
+
+        h1 { margin: 0; text-align: center; font-size: 1.6rem; font-weight: 700; }
+        .subtitle { text-align: center; color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px; }
+
+        .canvas-container {
+            position: relative; background: #fff; border-radius: 16px;
+            overflow: hidden; border: 1px solid rgba(0,0,0,0.05);
+            touch-action: none; margin-bottom: 20px;
+        }
+        canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+
+        .controls { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; 
+            background: rgba(0,0,0,0.03); padding: 20px; border-radius: 16px;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 10px; }
+        .control-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: #d1d1d6; border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); border: 1px solid #ddd;
+        }
+
+        .btn-analyze {
+            grid-column: span 2; padding: 14px; background: var(--primary-color);
+            color: white; border: none; border-radius: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-size: 15px;
+        }
+        .btn-analyze:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,122,255,0.3); }
+        .btn-analyze:active { transform: scale(0.98); }
+
+        .analysis-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,1); z-index: 100;
+            display: none; flex-direction: column; align-items: center; justify-content: flex-start;
+            padding: 40px; box-sizing: border-box; overflow: hidden;
+        }
+        .analysis-active { display: flex; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        #animCanvas { width: 100%; max-width: 900px; height: 500px; }
+        .close-btn { 
+            position: absolute; top: 20px; right: 20px; padding: 10px 24px;
+            background: #f2f2f7; border: none; border-radius: 20px; cursor: pointer; font-weight: 600;
+            transition: background 0.2s;
+        }
+        .close-btn:hover { background: #e5e5ea; }
+
+        #conclusionText { 
+            margin-top: 20px; max-width: 600px; text-align: center;
+            font-size: 1.1rem; line-height: 1.6; color: var(--text-main);
+            opacity: 0; transition: opacity 0.5s;
+        }
+        .visible { opacity: 1 !important; }
+
+        .data-val { color: var(--primary-color); font-weight: 700; }
+        .hint-text { text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 5px; grid-column: span 2;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>水波干涉實驗模擬</h1>
+    <div class="subtitle">觀察路程差（Path Difference）如何轉化為相位差</div>
+
+    <div class="canvas-container">
+        <canvas id="rippleCanvas" width="800" height="500"></canvas>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <div class="control-label">波長 λ: <span id="lVal" class="data-val">1.25</span> cm</div>
+            <input type="range" id="lInput" min="0.8" max="2.5" step="0.05" value="1.25">
+        </div>
+        <div class="control-group">
+            <div class="control-label">波源距 d: <span id="dVal" class="data-val">5.0</span> cm</div>
+            <input type="range" id="dInput" min="2.0" max="10.0" step="0.1" value="5.0">
+        </div>
+        <button class="btn-analyze" id="btnAnalyze">視覺化轉化分析：路程 → 波形</button>
+        <div class="hint-text">💡 提示：放手後 $P$ 點將自動吸附至最近的波陣面交點。</div>
+    </div>
+</div>
+
+<div class="analysis-overlay" id="overlay">
+    <button class="close-btn" id="btnClose">返回實驗</button>
+    <h2 style="margin-top: 40px; margin-bottom: 10px;">路程與相位的轉化分析</h2>
+    <p id="analysisMeta" style="color: var(--text-secondary); font-size: 0.95rem;"></p>
+    
+    <canvas id="animCanvas" width="900" height="500"></canvas>
+    
+    <div id="conclusionText"></div>
+</div>
+
+<script>
+    const canvas = document.getElementById('rippleCanvas');
+    const ctx = canvas.getContext('2d');
+    const animCanvas = document.getElementById('animCanvas');
+    const actx = animCanvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+
+    const PX_PER_CM = 40;
+    let config = { lambda: 1.25, d: 5.0, p: { x: 400, y: 150 }, pType: 'none', isDragging: false };
+
+    // --- 初始化 UI 綁定 ---
+    const updateVal = (id, key) => {
+        const input = document.getElementById(id + 'Input');
+        const valDisp = document.getElementById(id + 'Val');
+        input.oninput = () => {
+            config[key] = parseFloat(input.value);
+            valDisp.innerText = config[key].toFixed(2);
+            snapPoint(); 
+            drawMain();
+        };
+    };
+    updateVal('l', 'lambda');
+    updateVal('d', 'd');
+
+    // --- 改進版物理吸附邏輯 ---
+    function snapPoint() {
+        const cx = canvas.width / 2, cy = canvas.height * 0.85;
+        const s1 = { x: cx - (config.d * PX_PER_CM)/2, y: cy };
+        const s2 = { x: cx + (config.d * PX_PER_CM)/2, y: cy };
+        
+        // 1. 計算目前的物理路程差
+        let r1 = Math.sqrt((config.p.x - s1.x)**2 + (config.p.y - s1.y)**2) / PX_PER_CM;
+        let r2 = Math.sqrt((config.p.x - s2.x)**2 + (config.p.y - s2.y)**2) / PX_PER_CM;
+        let pd_cm = Math.abs(r1 - r2);
+        
+        // 2. 決定最近的干涉級數 (n)
+        const n_antinode = Math.round(pd_cm / config.lambda);
+        const n_node = Math.floor(pd_cm / config.lambda) + 0.5;
+        
+        const diff_antinode = Math.abs(pd_cm - n_antinode * config.lambda);
+        const diff_node = Math.abs(pd_cm - n_node * config.lambda);
+        
+        let targetPd = (diff_antinode < diff_node) ? n_antinode * config.lambda : n_node * config.lambda;
+        config.pType = (diff_antinode < diff_node) ? 'antinode' : 'node';
+
+        // 確保 targetPd 不會超過波源距離 d
+        if (targetPd >= config.d) targetPd = config.d - 0.01;
+
+        // 3. 吸附到對應的雙曲線上
+        const a = (targetPd / 2) * PX_PER_CM;
+        const c = (config.d / 2) * PX_PER_CM;
+        
+        let snappedX = cx;
+        let snappedY = config.p.y;
+
+        if (a < 0.1) {
+            snappedX = cx;
+        } else {
+            const b = Math.sqrt(Math.max(0, c * c - a * a));
+            const curY_rel = Math.max(10, cy - config.p.y);
+            const t = Math.asinh(curY_rel / b);
+            const hx = a * Math.cosh(t);
+            snappedX = (config.p.x > cx) ? cx + hx : cx - hx;
+            snappedY = cy - b * Math.sinh(t);
+        }
+
+        // 4. 精確吸附到相位交點 (Phase Snap)
+        // 讓 r1 成為最近的半波長的倍數，這樣 P 點就會落在波陣面線條上
+        const r1_snapped = Math.sqrt((snappedX - s1.x)**2 + (snappedY - s1.y)**2) / PX_PER_CM;
+        const halfLambda = config.lambda / 2;
+        const n_phase = Math.round(r1_snapped / halfLambda);
+        const finalR1 = n_phase * halfLambda;
+        
+        // 根據 finalR1 和 targetPd 反算最終座標
+        // 使用圓圓相交公式 (簡化版：在雙曲線上的點)
+        const finalR2 = (snappedX > cx) ? finalR1 - targetPd : finalR1 + targetPd;
+        
+        // 更新最終點位置
+        if (finalR1 > 0 && finalR2 > 0) {
+            const d_px = config.d * PX_PER_CM;
+            const cosAlpha = (finalR1**2 * PX_PER_CM**2 + d_px**2 - finalR2**2 * PX_PER_CM**2) / (2 * finalR1 * PX_PER_CM * d_px);
+            if (Math.abs(cosAlpha) <= 1) {
+                const angle = Math.acos(cosAlpha);
+                config.p.x = s1.x + finalR1 * PX_PER_CM * Math.cos(angle);
+                config.p.y = s1.y - finalR1 * PX_PER_CM * Math.sin(angle);
+            } else {
+                config.p.x = snappedX;
+                config.p.y = snappedY;
+            }
+        }
+    }
+
+    // --- 主畫面繪製 ---
+    function drawMain() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const cx = canvas.width / 2, cy = canvas.height * 0.85;
+        const s1 = { x: cx - (config.d * PX_PER_CM)/2, y: cy };
+        const s2 = { x: cx + (config.d * PX_PER_CM)/2, y: cy };
+        const lp = config.lambda * PX_PER_CM;
+
+        // 波前 (強化顯著度)
+        [s1, s2].forEach(s => {
+            for(let r = lp; r < 850; r += lp/2) {
+                const isPeak = Math.round(r/(lp/2)) % 2 === 0;
+                ctx.lineWidth = isPeak ? 1.8 : 1.0;
+                ctx.strokeStyle = isPeak ? 'rgba(0,122,255,0.22)' : 'rgba(255,59,48,0.18)';
+                ctx.setLineDash(isPeak ? [] : [5,4]);
+                ctx.beginPath(); ctx.arc(s.x, s.y, r, Math.PI, 2*Math.PI); ctx.stroke();
+            }
+        });
+
+        // 輔助干涉線
+        const maxN = Math.floor(config.d / config.lambda);
+        for(let n = -maxN; n <= maxN; n++) drawHyperLine(n * config.lambda);
+
+        // 路徑線
+        ctx.setLineDash([5,5]); ctx.lineWidth = 1; ctx.strokeStyle = "#bbb";
+        ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(config.p.x, config.p.y); ctx.lineTo(s2.x, s2.y); ctx.stroke();
+        
+        ctx.setLineDash([]);
+        [s1, s2].forEach(s => { ctx.fillStyle = "#333"; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, 7); ctx.fill(); });
+
+        // P點
+        let pColor = config.isDragging ? "rgba(255,59,48,0.6)" : (config.pType === 'antinode' ? '#007AFF' : '#34C759');
+        if (!config.isDragging) { ctx.shadowBlur = 12; ctx.shadowColor = pColor; }
+        ctx.fillStyle = pColor; ctx.beginPath(); ctx.arc(config.p.x, config.p.y, 7, 0, 7); ctx.fill();
+        ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawHyperLine(pd) {
+        const cx = canvas.width/2, cy = canvas.height*0.85;
+        const a = (Math.abs(pd)/2)*PX_PER_CM;
+        const c = (config.d/2)*PX_PER_CM;
+        if(a >= c) return;
+        ctx.beginPath(); ctx.strokeStyle = 'rgba(0,122,255,0.08)'; ctx.lineWidth = 1;
+        const b = Math.sqrt(c*c - a*a);
+        const sign = pd > 0 ? 1 : -1;
+        for(let t=-4; t<=4; t+=0.1){
+            const x = cx + sign*a*Math.cosh(t), y = cy - b*Math.sinh(t);
+            if(t===-4) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+    }
+
+    // --- 互動控制 ---
+    canvas.onpointerdown = (e) => {
+        config.isDragging = true;
+        const move = (me) => {
+            const r = canvas.getBoundingClientRect();
+            config.p.x = (me.clientX - r.left) * (canvas.width / r.width);
+            config.p.y = Math.min((me.clientY - r.top) * (canvas.height / r.height), canvas.height * 0.8);
+            drawMain();
+        };
+        move(e);
+        window.onpointermove = move;
+        window.onpointerup = () => {
+            config.isDragging = false;
+            snapPoint(); drawMain();
+            window.onpointermove = null;
+        };
+    };
+
+    // --- 過渡動畫分析邏輯 ---
+    document.getElementById('btnAnalyze').onclick = () => {
+        overlay.classList.add('analysis-active');
+        document.getElementById('conclusionText').classList.remove('visible');
+        startTransitionAnim();
+    };
+    document.getElementById('btnClose').onclick = () => overlay.classList.remove('analysis-active');
+
+    function startTransitionAnim() {
+        const cx = canvas.width / 2, cy = canvas.height * 0.85;
+        const s1 = { x: cx - (config.d * PX_PER_CM)/2, y: cy };
+        const s2 = { x: cx + (config.d * PX_PER_CM)/2, y: cy };
+        const p = config.p;
+        
+        const r1_cm = Math.sqrt((p.x - s1.x)**2 + (p.y - s1.y)**2) / PX_PER_CM;
+        const r2_cm = Math.sqrt((p.x - s2.x)**2 + (p.y - s2.y)**2) / PX_PER_CM;
+        
+        document.getElementById('analysisMeta').innerText = `路程 PS₁ = ${r1_cm.toFixed(2)} cm | PS₂ = ${r2_cm.toFixed(2)} cm`;
+
+        const startT = performance.now();
+        const duration = 2800;
+
+        function frame(now) {
+            const elapsed = now - startT;
+            const progress = Math.min(elapsed / duration, 1);
+            actx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const moveProg = Math.min(progress / 0.35, 1);
+            const waveProg = progress > 0.35 ? (progress - 0.35) / 0.65 : 0;
+
+            const targetX = 120;
+            const targetY1 = 150;
+            const targetY2 = 320;
+            const waveScale = 65; 
+
+            drawTransitionWave(actx, s1, p, targetX, targetY1, r1_cm * waveScale, config.lambda * waveScale, "#007AFF", "PS₁", moveProg, waveProg);
+            drawTransitionWave(actx, s2, p, targetX, targetY2, r2_cm * waveScale, config.lambda * waveScale, "#FF9500", "PS₂", moveProg, waveProg);
+
+            if (progress >= 1) {
+                showConclusion(r1_cm, r2_cm, targetX, targetY1, targetY2, waveScale);
+            } else {
+                requestAnimationFrame(frame);
+            }
+        }
+        requestAnimationFrame(frame);
+    }
+
+    function drawTransitionWave(ctx, s, p, tx, ty, finalLen, lp, color, label, mProg, wProg) {
+        const startX = s.x, startY = s.y;
+        const endX = p.x, endY = p.y;
+        const curBaseX = startX + (tx - startX) * mProg;
+        const curBaseY = startY + (ty - startY) * mProg;
+        const initialAngle = Math.atan2(endY - startY, endX - startX);
+        const curAngle = initialAngle * (1 - wProg); 
+        const curLen = Math.sqrt((endX - startX)**2 + (endY - startY)**2) * (1 - wProg) + finalLen * wProg;
+
+        ctx.save();
+        ctx.translate(curBaseX, curBaseY);
+        ctx.rotate(curAngle);
+        ctx.strokeStyle = color; ctx.lineWidth = 3;
+        ctx.beginPath();
+        
+        if (wProg < 0.02) {
+            ctx.moveTo(0, 0);
+            ctx.lineTo(curLen, 0);
+        } else {
+            ctx.moveTo(0, 0);
+            const segments = 240;
+            for(let i=0; i<=segments; i++) {
+                const px = (i / segments) * curLen;
+                const amplitude = 25 * wProg;
+                // 使用 Cosine 確保起始點為波峰 (符合物理設定)
+                const py = -Math.cos((px / lp) * Math.PI * 2) * amplitude;
+                ctx.lineTo(px, py);
+            }
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.fillStyle = "#1d1d1f"; ctx.font = "bold 15px sans-serif";
+        ctx.fillText(label, curBaseX - 60, curBaseY + 5);
+
+        const endPX = curBaseX + Math.cos(curAngle) * curLen;
+        const endPY = curBaseY + Math.sin(curAngle) * curLen - (wProg > 0 ? Math.cos((curLen/lp)*Math.PI*2)*25*wProg : 0);
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(endPX, endPY, 5, 0, 7); ctx.fill();
+    }
+
+    function showConclusion(r1, r2, tx, ty1, ty2, scale) {
+        const dr = Math.abs(r1 - r2);
+        const ratio = dr / config.lambda;
+        const shortR = Math.min(r1, r2) * scale;
+        const longR = Math.max(r1, r2) * scale;
+
+        actx.setLineDash([5, 5]); actx.strokeStyle = "#8e8e93"; actx.lineWidth = 1;
+        actx.beginPath(); actx.moveTo(tx + shortR, ty1 - 80); actx.lineTo(tx + shortR, ty2 + 80); actx.stroke();
+        actx.setLineDash([]);
+        actx.fillStyle = "rgba(52, 199, 89, 0.12)";
+        actx.fillRect(tx + shortR, ty1 - 60, (longR - shortR), ty2 - ty1 + 120);
+        
+        actx.fillStyle = "#34C759"; actx.font = "bold 16px sans-serif";
+        actx.fillText(`路程差 Δr = ${dr.toFixed(2)} cm`, tx + shortR + 10, (ty1 + ty2)/2);
+        actx.fillText(`(${ratio.toFixed(1)} λ)`, tx + shortR + 10, (ty1 + ty2)/2 + 25);
+
+        const cText = document.getElementById('conclusionText');
+        cText.classList.add('visible');
+        if (config.pType === 'antinode') {
+            const isPeak = Math.abs(Math.cos(2*Math.PI*r1/config.lambda) - 1) < 0.1;
+            cText.innerHTML = `<span style="color:#007AFF; font-weight:800">相長干涉 (Constructive):</span><br>Δr = ${Math.round(ratio)}λ。此時兩列波在 P 點處${isPeak?'波峰遇波峰':'波谷遇波谷'}，疊加後振幅最大。`;
+        } else {
+            cText.innerHTML = `<span style="color:#34C759; font-weight:800">相消干涉 (Destructive):</span><br>Δr = ${Math.floor(ratio)}.5λ。此時一列波為波峰，另一列為波谷，兩波互相抵銷。`;
+        }
+    }
+
+    drawMain();
+</script>
+
+</body>
+</html>
