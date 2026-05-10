@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>波動教學與出題模擬器 - 精確週期版</title>
+    <title>波動質點振動模擬器 - 教學與出題版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
         
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', "Microsoft JhengHei", sans-serif;
             background-color: #ffffff;
             color: #000000;
         }
@@ -21,6 +21,7 @@
         canvas {
             background: white;
             border: 1px solid #000;
+            width: 100%;
         }
 
         .control-panel {
@@ -57,27 +58,40 @@
             color: #fff;
         }
 
-        /* 隱藏列印時不需要的 UI */
+        input[type="range"] {
+            cursor: pointer;
+        }
+
         @media print {
             .no-print { display: none; }
             body { padding: 0; }
-            .control-panel { display: none; }
         }
     </style>
 </head>
 <body class="p-4 md:p-6">
     <div class="max-w-6xl mx-auto">
         <header class="mb-6 text-center border-b-2 border-black pb-4">
-            <h1 class="text-2xl font-bold mb-1">波動與質點振動分析 (Exam Preparation Tool)</h1>
-            <p class="text-sm italic times-new-roman text-slate-600">Spatial Waveform (y-x) and Displacement-Time (s-t) over 1 Period</p>
+            <h1 class="text-2xl font-bold mb-1">波動與質點振動分析模擬器</h1>
+            <p class="text-sm italic times-new-roman text-slate-600">空間波形圖 (y-x) 與 質點位移-時間圖 (s-t)</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div class="lg:col-span-1 space-y-4 no-print">
                 <div class="control-panel">
-                    <h2 class="font-bold mb-3 text-sm border-b-2 border-black pb-1 uppercase">參數設定 (Settings)</h2>
+                    <h2 class="font-bold mb-3 text-sm border-b-2 border-black pb-1 uppercase">參數設定</h2>
                     
                     <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">傳播方向 (v)：</label>
+                            <div class="flex gap-4">
+                                <label class="inline-flex items-center text-xs">
+                                    <input type="radio" name="direction" value="right" checked class="form-radio text-black mr-1"> 向右
+                                </label>
+                                <label class="inline-flex items-center text-xs">
+                                    <input type="radio" name="direction" value="left" class="form-radio text-black mr-1"> 向左
+                                </label>
+                            </div>
+                        </div>
                         <div>
                             <label class="block text-xs font-bold mb-1">週期 Period (T) : <span id="valPeriod" class="times-new-roman italic">4.0</span> s</label>
                             <input type="range" id="periodRange" min="1" max="10" step="0.1" value="4.0" class="w-full accent-black">
@@ -93,53 +107,54 @@
                     </div>
 
                     <div class="mt-6 border-t border-black pt-4">
-                        <label class="block text-[10px] font-bold mb-2 uppercase">相位快照 (Phase Snaps)</label>
+                        <label class="block text-[10px] font-bold mb-2 uppercase">相位快照 (時間跳轉)</label>
                         <div class="grid grid-cols-3 gap-1">
-                            <button onclick="snapTo(0)" class="snap-btn">t=0</button>
-                            <button onclick="snapTo(0.25)" class="snap-btn">0.25T</button>
-                            <button onclick="snapTo(0.5)" class="snap-btn">0.5T</button>
-                            <button onclick="snapTo(0.75)" class="snap-btn">0.75T</button>
-                            <button onclick="snapTo(1.0)" class="snap-btn">1.0T</button>
-                            <button id="playBtn" class="snap-btn bg-black text-white font-sans not-italic">PLAY</button>
+                            <button onclick="snapTo(0)" class="snap-btn">t = 0</button>
+                            <button onclick="snapTo(0.25)" class="snap-btn">0.25 T</button>
+                            <button onclick="snapTo(0.5)" class="snap-btn">0.5 T</button>
+                            <button onclick="snapTo(0.75)" class="snap-btn">0.75 T</button>
+                            <button onclick="snapTo(1.0)" class="snap-btn">1.0 T</button>
+                            <button id="playBtn" class="snap-btn bg-black text-white font-sans not-italic">播放 / 暫停</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-slate-50 p-3 border border-slate-300 text-[11px] leading-relaxed times-new-roman">
-                    <p class="font-bold mb-1 underline">Position Logic:</p>
-                    <ul class="space-y-1 italic">
-                        <li>A: x = 0 (Equilibrium)</li>
-                        <li>B: x = 0.25 λ (Peak @ t=0)</li>
-                        <li>C: x = 0.50 λ (Equilibrium)</li>
-                        <li>D: x = 0.75 λ (Trough @ t=0)</li>
-                        <li>E: x = 1.50 λ (Equilibrium)</li>
+                <div class="bg-slate-50 p-3 border border-slate-300 text-[11px] leading-relaxed">
+                    <p class="font-bold mb-1 underline">質點位置邏輯：</p>
+                    <ul class="space-y-1 italic times-new-roman">
+                        <li>A: x = 0 (平衡點)</li>
+                        <li>B: x = 0.25 λ (t=0 時為波峰)</li>
+                        <li>C: x = 0.50 λ (平衡點)</li>
+                        <li>D: x = 0.75 λ (t=0 時為波谷)</li>
+                        <li>E: x = 1.50 λ (平衡點)</li>
                     </ul>
                 </div>
             </div>
 
             <div class="lg:col-span-3">
                 <div class="relative border-2 border-black">
-                    <canvas id="mainCanvas" class="w-full h-64"></canvas>
+                    <canvas id="mainCanvas" height="260"></canvas>
                     
                     <!-- Propagation Indicator -->
-                    <div class="absolute top-4 right-4 flex flex-col items-end">
-                        <span class="text-[10px] font-bold italic times-new-roman">Propagation Direction (v)</span>
-                        <svg width="80" height="20" viewBox="0 0 80 20">
+                    <div id="dirIndicator" class="absolute top-4 right-4 flex flex-col items-end">
+                        <span class="text-[10px] font-bold italic">波動傳播方向 (v)</span>
+                        <svg id="arrowSvg" width="80" height="20" viewBox="0 0 80 20">
                             <line x1="0" y1="10" x2="70" y2="10" stroke="black" stroke-width="2" />
                             <polygon points="68,4 78,10 68,16" fill="black" />
                         </svg>
                     </div>
 
-                    <div class="absolute bottom-2 left-2 text-[10px] font-bold uppercase border-l-2 border-black pl-1">
-                        Spatial Waveform: y = A sin(kx - ωt)
+                    <div class="absolute bottom-2 left-2 text-[10px] font-bold border-l-2 border-black pl-1">
+                        空間波形圖 (y-x)
                     </div>
                     
                     <!-- Time Indicator -->
                     <div class="absolute top-2 left-2 bg-black text-white px-2 py-1 text-xs times-new-roman">
-                        t = <span id="currentTimeDisplay">0.00</span> s
+                        當前時間 t = <span id="currentTimeDisplay">0.00</span> s
                     </div>
                 </div>
 
+                <!-- s-t Graphs Container -->
                 <div class="st-graph-container" id="stContainer"></div>
             </div>
         </div>
@@ -150,12 +165,13 @@
         const ctx = mainCanvas.getContext('2d');
         const stContainer = document.getElementById('stContainer');
         const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const arrowSvg = document.getElementById('arrowSvg');
         
-        // Configuration Constants
         const config = {
             amplitude: 40,
             wavelength: 200,
-            period: 4.0, // T in seconds
+            period: 4.0,
+            direction: 1, // 1 for right, -1 for left
             startX: 60,
             points: [
                 { id: 'A', lambdaOffset: 0.0 },
@@ -167,7 +183,7 @@
         };
 
         let currentTime = 0;
-        let isPaused = false;
+        let isPaused = true;
         let lastTimestamp = 0;
 
         // Create s-t chart objects
@@ -177,49 +193,60 @@
             card.innerHTML = `
                 <div class="w-full flex justify-between items-center mb-1 border-b border-black">
                     <span class="label-style text-lg">${p.id}</span>
-                    <span class="text-[9px] uppercase font-bold">s-t (1 Period)</span>
+                    <span class="text-[9px] font-bold">s-t (1 週期)</span>
                 </div>
-                <canvas id="stCanvas_${index}" class="w-full h-32"></canvas>
+                <canvas id="stCanvas_${index}" height="120"></canvas>
             `;
             stContainer.appendChild(card);
             const canv = document.getElementById(`stCanvas_${index}`);
             return { canvas: canv, ctx: canv.getContext('2d'), point: p };
         });
 
-        // Resize Logic
+        // Resize function for HDPI screens
         function resize() {
             const dpr = window.devicePixelRatio || 1;
-            mainCanvas.width = mainCanvas.clientWidth * dpr;
-            mainCanvas.height = mainCanvas.clientHeight * dpr;
-            ctx.scale(dpr, dpr);
+            
+            const containers = [
+                { canv: mainCanvas, parent: mainCanvas.parentElement },
+                ...stCtxs.map(obj => ({ canv: obj.canvas, parent: obj.canvas.parentElement }))
+            ];
 
-            stCtxs.forEach(obj => {
-                obj.canvas.width = obj.canvas.clientWidth * dpr;
-                obj.canvas.height = obj.canvas.clientHeight * dpr;
-                obj.ctx.scale(dpr, dpr);
+            containers.forEach(item => {
+                const rect = item.parent.getBoundingClientRect();
+                // Avoid zero width on hidden elements
+                const width = rect.width || 300;
+                item.canv.width = width * dpr;
+                item.canv.height = item.canv.height * dpr; // Maintain height set in HTML
+                const c = item.canv.getContext('2d');
+                c.scale(dpr, dpr);
             });
         }
 
         window.addEventListener('resize', resize);
-        resize();
+        // Initial setup delay to ensure DOM is ready for bounding rects
+        setTimeout(resize, 100);
 
+        // Core Wave Formula
         function getDisplacement(x, t) {
             const k = (2 * Math.PI) / config.wavelength;
             const omega = (2 * Math.PI) / config.period;
-            // Standard wave moving to the right: y = A * sin(kx - omega*t)
-            return config.amplitude * Math.sin(k * (x - config.startX) - omega * t);
+            
+            // Equation: y = A * sin( kx -/+ omega*t )
+            // Sign of omega*t depends on direction
+            // To ensure B is peak at t=0, we use (x - startX) logic
+            const phase = k * (x - config.startX) - (config.direction * omega * t);
+            return config.amplitude * Math.sin(phase);
         }
 
         function snapTo(phaseRatio) {
             currentTime = phaseRatio * config.period;
             isPaused = true;
             updatePlayButtonUI();
-            currentTimeDisplay.textContent = currentTime.toFixed(2);
         }
 
         function updatePlayButtonUI() {
             const btn = document.getElementById('playBtn');
-            btn.textContent = isPaused ? "RESUME" : "PAUSE";
+            btn.textContent = isPaused ? "播放" : "暫停";
             btn.style.background = isPaused ? "#22c55e" : "#000"; 
         }
 
@@ -230,10 +257,7 @@
 
             if (!isPaused) {
                 currentTime += deltaTime;
-                // Loop within the period for smooth visualization
-                if (currentTime > config.period) {
-                    currentTime = 0;
-                }
+                if (currentTime > config.period) currentTime = 0;
             }
             
             currentTimeDisplay.textContent = currentTime.toFixed(2);
@@ -245,9 +269,10 @@
         }
 
         function drawMainWave() {
-            const w = mainCanvas.clientWidth;
-            const h = mainCanvas.clientHeight;
+            const w = mainCanvas.width / (window.devicePixelRatio || 1);
+            const h = mainCanvas.height / (window.devicePixelRatio || 1);
             const centerY = h / 2;
+            
             ctx.clearRect(0, 0, w, h);
 
             // Equilibrium Reference Line
@@ -261,7 +286,7 @@
 
             // Waveform
             ctx.beginPath();
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1.5;
             ctx.strokeStyle = '#000000';
             for (let x = 0; x <= w; x++) {
                 const y = getDisplacement(x, currentTime);
@@ -278,12 +303,12 @@
                 if (px >= 0 && px <= w) {
                     ctx.fillStyle = '#000000';
                     ctx.beginPath();
-                    ctx.arc(px, centerY + py, 6, 0, Math.PI * 2);
+                    ctx.arc(px, centerY + py, 5, 0, Math.PI * 2);
                     ctx.fill();
                     
-                    ctx.font = 'italic bold 22px "Times New Roman"';
+                    ctx.font = 'italic bold 20px "Times New Roman"';
                     ctx.textAlign = 'center';
-                    ctx.fillText(p.id, px, centerY + py - 15);
+                    ctx.fillText(p.id, px, centerY + py - 12);
                 }
             });
         }
@@ -291,64 +316,61 @@
         function drawSTGraphs() {
             stCtxs.forEach((obj) => {
                 const sCtx = obj.ctx;
-                const sW = obj.canvas.clientWidth;
-                const sH = obj.canvas.clientHeight;
+                const sW = obj.canvas.width / (window.devicePixelRatio || 1);
+                const sH = obj.canvas.height / (window.devicePixelRatio || 1);
                 const sCenterY = sH / 2;
                 const p = obj.point;
 
                 sCtx.clearRect(0, 0, sW, sH);
 
-                // Axis and Grid
-                sCtx.strokeStyle = '#f0f0f0';
+                // Axis
+                sCtx.strokeStyle = '#eeeeee';
                 sCtx.beginPath();
                 sCtx.moveTo(0, sCenterY);
                 sCtx.lineTo(sW, sCenterY);
                 sCtx.stroke();
                 
-                // Draw a box border for clean look
                 sCtx.strokeStyle = '#000000';
                 sCtx.lineWidth = 0.5;
                 sCtx.strokeRect(0, 0, sW, sH);
 
                 // Plot the full period (0 to T)
                 sCtx.beginPath();
-                sCtx.lineWidth = 1.5;
+                sCtx.lineWidth = 1.2;
                 sCtx.strokeStyle = '#000000';
                 
                 const px = config.startX + (p.lambdaOffset * config.wavelength);
                 
                 for (let tStep = 0; tStep <= sW; tStep++) {
-                    // Map x-coordinate of graph to time t [0, T]
                     const t = (tStep / sW) * config.period;
                     const disp = getDisplacement(px, t);
-                    
                     if (tStep === 0) sCtx.moveTo(tStep, sCenterY + disp);
                     else sCtx.lineTo(tStep, sCenterY + disp);
                 }
                 sCtx.stroke();
 
-                // Current Time Cursor (Vertical bar)
+                // Current Time Cursor
                 const cursorX = (currentTime / config.period) * sW;
                 sCtx.setLineDash([2, 2]);
-                sCtx.strokeStyle = '#666';
+                sCtx.strokeStyle = '#999';
                 sCtx.beginPath();
                 sCtx.moveTo(cursorX, 0);
                 sCtx.lineTo(cursorX, sH);
                 sCtx.stroke();
                 sCtx.setLineDash([]);
 
-                // Current Position Dot on s-t graph
+                // Current State Dot
                 const currentDisp = getDisplacement(px, currentTime);
                 sCtx.fillStyle = '#000';
                 sCtx.beginPath();
-                sCtx.arc(cursorX, sCenterY + currentDisp, 4, 0, Math.PI * 2);
+                sCtx.arc(cursorX, sCenterY + currentDisp, 3.5, 0, Math.PI * 2);
                 sCtx.fill();
 
-                // Labels for time axis
-                sCtx.font = '8px "Times New Roman"';
+                // Labels
+                sCtx.font = '9px "Times New Roman"';
                 sCtx.fillStyle = '#000';
-                sCtx.fillText("0", 2, sH - 2);
-                sCtx.fillText("T", sW - 8, sH - 2);
+                sCtx.fillText("0", 2, sH - 4);
+                sCtx.fillText("T", sW - 10, sH - 4);
             });
         }
 
@@ -360,6 +382,18 @@
         document.getElementById('periodRange').addEventListener('input', (e) => {
             config.period = parseFloat(e.target.value);
             document.getElementById('valPeriod').textContent = config.period.toFixed(1);
+        });
+
+        document.getElementsByName('direction').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                config.direction = e.target.value === 'right' ? 1 : -1;
+                // Update Arrow Visual
+                if (config.direction === 1) {
+                    arrowSvg.innerHTML = '<line x1="0" y1="10" x2="70" y2="10" stroke="black" stroke-width="2" /><polygon points="68,4 78,10 68,16" fill="black" />';
+                } else {
+                    arrowSvg.innerHTML = '<line x1="80" y1="10" x2="10" y2="10" stroke="black" stroke-width="2" /><polygon points="12,4 2,10 12,16" fill="black" />';
+                }
+            });
         });
         
         document.getElementById('playBtn').addEventListener('click', function() {
