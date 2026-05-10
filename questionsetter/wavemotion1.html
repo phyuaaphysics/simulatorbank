@@ -58,6 +58,23 @@
             color: #fff;
         }
 
+        .export-btn {
+            background: #000;
+            color: #fff;
+            border: 1px solid #000;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 8px;
+            border-radius: 4px;
+            transition: opacity 0.2s;
+        }
+
+        .export-btn:hover {
+            opacity: 0.8;
+        }
+
         input[type="range"] {
             cursor: pointer;
         }
@@ -114,8 +131,12 @@
                             <button onclick="snapTo(0.5)" class="snap-btn">0.5 T</button>
                             <button onclick="snapTo(0.75)" class="snap-btn">0.75 T</button>
                             <button onclick="snapTo(1.0)" class="snap-btn">1.0 T</button>
-                            <button id="playBtn" class="snap-btn bg-black text-white font-sans not-italic">播放 / 暫停</button>
+                            <button id="playBtn" class="snap-btn bg-black text-white font-sans not-italic">播放</button>
                         </div>
+                    </div>
+
+                    <div class="mt-4 border-t border-black pt-4">
+                        <button onclick="exportSnapshot()" class="export-btn">匯出當前快照 (HD PNG)</button>
                     </div>
                 </div>
 
@@ -132,7 +153,7 @@
             </div>
 
             <div class="lg:col-span-3">
-                <div class="relative border-2 border-black">
+                <div class="relative border-2 border-black" id="mainCanvasWrapper">
                     <canvas id="mainCanvas" height="260"></canvas>
                     
                     <!-- Propagation Indicator -->
@@ -159,6 +180,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Hidden canvas for export -->
+    <canvas id="exportCanvas" style="display:none;"></canvas>
 
     <script>
         const mainCanvas = document.getElementById('mainCanvas');
@@ -202,10 +226,8 @@
             return { canvas: canv, ctx: canv.getContext('2d'), point: p };
         });
 
-        // Resize function for HDPI screens
         function resize() {
             const dpr = window.devicePixelRatio || 1;
-            
             const containers = [
                 { canv: mainCanvas, parent: mainCanvas.parentElement },
                 ...stCtxs.map(obj => ({ canv: obj.canvas, parent: obj.canvas.parentElement }))
@@ -213,27 +235,21 @@
 
             containers.forEach(item => {
                 const rect = item.parent.getBoundingClientRect();
-                // Avoid zero width on hidden elements
                 const width = rect.width || 300;
                 item.canv.width = width * dpr;
-                item.canv.height = item.canv.height * dpr; // Maintain height set in HTML
+                item.canv.height = parseInt(item.canv.getAttribute('height')) * dpr;
                 const c = item.canv.getContext('2d');
+                c.setTransform(1, 0, 0, 1, 0, 0); // Reset
                 c.scale(dpr, dpr);
             });
         }
 
         window.addEventListener('resize', resize);
-        // Initial setup delay to ensure DOM is ready for bounding rects
         setTimeout(resize, 100);
 
-        // Core Wave Formula
         function getDisplacement(x, t) {
             const k = (2 * Math.PI) / config.wavelength;
             const omega = (2 * Math.PI) / config.period;
-            
-            // Equation: y = A * sin( kx -/+ omega*t )
-            // Sign of omega*t depends on direction
-            // To ensure B is peak at t=0, we use (x - startX) logic
             const phase = k * (x - config.startX) - (config.direction * omega * t);
             return config.amplitude * Math.sin(phase);
         }
@@ -262,38 +278,39 @@
             
             currentTimeDisplay.textContent = currentTime.toFixed(2);
 
-            drawMainWave();
-            drawSTGraphs();
+            drawMainWave(ctx, mainCanvas);
+            stCtxs.forEach(obj => drawSTGraph(obj.ctx, obj.canvas, obj.point));
 
             requestAnimationFrame(animate);
         }
 
-        function drawMainWave() {
-            const w = mainCanvas.width / (window.devicePixelRatio || 1);
-            const h = mainCanvas.height / (window.devicePixelRatio || 1);
+        function drawMainWave(targetCtx, targetCanvas) {
+            const dpr = 1; // Handled by scale outside if needed
+            const w = targetCanvas.width / (window.devicePixelRatio || 1);
+            const h = targetCanvas.height / (window.devicePixelRatio || 1);
             const centerY = h / 2;
             
-            ctx.clearRect(0, 0, w, h);
+            targetCtx.clearRect(0, 0, w, h);
 
             // Equilibrium Reference Line
-            ctx.setLineDash([5, 5]);
-            ctx.strokeStyle = '#cccccc';
-            ctx.beginPath();
-            ctx.moveTo(0, centerY);
-            ctx.lineTo(w, centerY);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            targetCtx.setLineDash([5, 5]);
+            targetCtx.strokeStyle = '#cccccc';
+            targetCtx.beginPath();
+            targetCtx.moveTo(0, centerY);
+            targetCtx.lineTo(w, centerY);
+            targetCtx.stroke();
+            targetCtx.setLineDash([]);
 
             // Waveform
-            ctx.beginPath();
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = '#000000';
+            targetCtx.beginPath();
+            targetCtx.lineWidth = 1.5;
+            targetCtx.strokeStyle = '#000000';
             for (let x = 0; x <= w; x++) {
                 const y = getDisplacement(x, currentTime);
-                if (x === 0) ctx.moveTo(x, centerY + y);
-                else ctx.lineTo(x, centerY + y);
+                if (x === 0) targetCtx.moveTo(x, centerY + y);
+                else targetCtx.lineTo(x, centerY + y);
             }
-            ctx.stroke();
+            targetCtx.stroke();
 
             // Particles ABCDE
             config.points.forEach((p) => {
@@ -301,77 +318,199 @@
                 const py = getDisplacement(px, currentTime);
                 
                 if (px >= 0 && px <= w) {
-                    ctx.fillStyle = '#000000';
-                    ctx.beginPath();
-                    ctx.arc(px, centerY + py, 5, 0, Math.PI * 2);
-                    ctx.fill();
+                    targetCtx.fillStyle = '#000000';
+                    targetCtx.beginPath();
+                    targetCtx.arc(px, centerY + py, 5, 0, Math.PI * 2);
+                    targetCtx.fill();
                     
-                    ctx.font = 'italic bold 20px "Times New Roman"';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(p.id, px, centerY + py - 12);
+                    targetCtx.font = 'italic bold 20px "Times New Roman"';
+                    targetCtx.textAlign = 'center';
+                    targetCtx.fillText(p.id, px, centerY + py - 12);
                 }
             });
         }
 
-        function drawSTGraphs() {
-            stCtxs.forEach((obj) => {
-                const sCtx = obj.ctx;
-                const sW = obj.canvas.width / (window.devicePixelRatio || 1);
-                const sH = obj.canvas.height / (window.devicePixelRatio || 1);
-                const sCenterY = sH / 2;
-                const p = obj.point;
+        function drawSTGraph(sCtx, sCanvas, p) {
+            const w = sCanvas.width / (window.devicePixelRatio || 1);
+            const h = sCanvas.height / (window.devicePixelRatio || 1);
+            const sCenterY = h / 2;
 
-                sCtx.clearRect(0, 0, sW, sH);
+            sCtx.clearRect(0, 0, w, h);
 
-                // Axis
-                sCtx.strokeStyle = '#eeeeee';
-                sCtx.beginPath();
-                sCtx.moveTo(0, sCenterY);
-                sCtx.lineTo(sW, sCenterY);
-                sCtx.stroke();
-                
-                sCtx.strokeStyle = '#000000';
-                sCtx.lineWidth = 0.5;
-                sCtx.strokeRect(0, 0, sW, sH);
+            // Axis
+            sCtx.strokeStyle = '#eeeeee';
+            sCtx.beginPath();
+            sCtx.moveTo(0, sCenterY);
+            sCtx.lineTo(w, sCenterY);
+            sCtx.stroke();
+            
+            sCtx.strokeStyle = '#000000';
+            sCtx.lineWidth = 0.5;
+            sCtx.strokeRect(0, 0, w, h);
 
-                // Plot the full period (0 to T)
-                sCtx.beginPath();
-                sCtx.lineWidth = 1.2;
-                sCtx.strokeStyle = '#000000';
-                
+            // Plot full period
+            sCtx.beginPath();
+            sCtx.lineWidth = 1.2;
+            sCtx.strokeStyle = '#000000';
+            const px = config.startX + (p.lambdaOffset * config.wavelength);
+            for (let tStep = 0; tStep <= w; tStep++) {
+                const t = (tStep / w) * config.period;
+                const disp = getDisplacement(px, t);
+                if (tStep === 0) sCtx.moveTo(tStep, sCenterY + disp);
+                else sCtx.lineTo(tStep, sCenterY + disp);
+            }
+            sCtx.stroke();
+
+            // Current Time Cursor
+            const cursorX = (currentTime / config.period) * w;
+            sCtx.setLineDash([2, 2]);
+            sCtx.strokeStyle = '#999';
+            sCtx.beginPath();
+            sCtx.moveTo(cursorX, 0);
+            sCtx.lineTo(cursorX, h);
+            sCtx.stroke();
+            sCtx.setLineDash([]);
+
+            // Current State Dot
+            const currentDisp = getDisplacement(px, currentTime);
+            sCtx.fillStyle = '#000';
+            sCtx.beginPath();
+            sCtx.arc(cursorX, sCenterY + currentDisp, 3.5, 0, Math.PI * 2);
+            sCtx.fill();
+
+            sCtx.font = '9px "Times New Roman"';
+            sCtx.fillStyle = '#000';
+            sCtx.fillText("0", 2, h - 4);
+            sCtx.fillText("T", w - 10, h - 4);
+        }
+
+        function exportSnapshot() {
+            const exportCanvas = document.getElementById('exportCanvas');
+            const eCtx = exportCanvas.getContext('2d');
+            const scale = 2; // HD export
+            
+            const mainW = mainCanvas.width / (window.devicePixelRatio || 1);
+            const mainH = mainCanvas.height / (window.devicePixelRatio || 1);
+            const stW = stCtxs[0].canvas.width / (window.devicePixelRatio || 1);
+            const stH = stCtxs[0].canvas.height / (window.devicePixelRatio || 1);
+            
+            // Layout Calculation
+            const margin = 40;
+            const gap = 20;
+            const totalW = Math.max(mainW, (stW * 5) + (gap * 4)) + margin * 2;
+            const totalH = mainH + stH + margin * 3 + 60; // Extra space for titles
+
+            exportCanvas.width = totalW * scale;
+            exportCanvas.height = totalH * scale;
+            eCtx.scale(scale, scale);
+
+            // Background
+            eCtx.fillStyle = '#ffffff';
+            eCtx.fillRect(0, 0, totalW, totalH);
+
+            // Title
+            eCtx.fillStyle = '#000000';
+            eCtx.font = 'bold 24px "Microsoft JhengHei"';
+            eCtx.textAlign = 'center';
+            eCtx.fillText("波動與質點振動物理分析快照", totalW / 2, margin + 10);
+            
+            eCtx.font = 'italic 14px "Times New Roman"';
+            eCtx.fillText(`當前時刻 t = ${currentTime.toFixed(2)} s | 週期 T = ${config.period.toFixed(1)} s | 傳播方向: ${config.direction === 1 ? '向右' : '向左'}`, totalW / 2, margin + 35);
+
+            // Draw Main Wave
+            eCtx.save();
+            eCtx.translate(margin, margin + 60);
+            // Re-draw wave on this context
+            const centerY = mainH / 2;
+            eCtx.strokeStyle = '#000';
+            eCtx.lineWidth = 1;
+            eCtx.strokeRect(0, 0, mainW, mainH);
+            
+            eCtx.setLineDash([5, 5]);
+            eCtx.strokeStyle = '#ccc';
+            eCtx.beginPath(); eCtx.moveTo(0, centerY); eCtx.lineTo(mainW, centerY); eCtx.stroke();
+            eCtx.setLineDash([]);
+            
+            eCtx.strokeStyle = '#000';
+            eCtx.lineWidth = 2;
+            eCtx.beginPath();
+            for (let x = 0; x <= mainW; x++) {
+                const y = getDisplacement(x, currentTime);
+                if (x === 0) eCtx.moveTo(x, centerY + y);
+                else eCtx.lineTo(x, centerY + y);
+            }
+            eCtx.stroke();
+
+            // Direction Arrow on Export
+            eCtx.font = 'italic bold 12px "Times New Roman"';
+            eCtx.textAlign = 'right';
+            eCtx.fillText("v", mainW - 10, 20);
+            eCtx.beginPath();
+            if(config.direction === 1) {
+                eCtx.moveTo(mainW-60, 25); eCtx.lineTo(mainW-15, 25);
+                eCtx.lineTo(mainW-20, 20); eCtx.moveTo(mainW-15, 25); eCtx.lineTo(mainW-20, 30);
+            } else {
+                eCtx.moveTo(mainW-15, 25); eCtx.lineTo(mainW-60, 25);
+                eCtx.lineTo(mainW-55, 20); eCtx.moveTo(mainW-60, 25); eCtx.lineTo(mainW-55, 30);
+            }
+            eCtx.stroke();
+
+            // Points
+            config.points.forEach((p) => {
                 const px = config.startX + (p.lambdaOffset * config.wavelength);
-                
-                for (let tStep = 0; tStep <= sW; tStep++) {
-                    const t = (tStep / sW) * config.period;
-                    const disp = getDisplacement(px, t);
-                    if (tStep === 0) sCtx.moveTo(tStep, sCenterY + disp);
-                    else sCtx.lineTo(tStep, sCenterY + disp);
+                const py = getDisplacement(px, currentTime);
+                if (px >= 0 && px <= mainW) {
+                    eCtx.fillStyle = '#000';
+                    eCtx.beginPath(); eCtx.arc(px, centerY + py, 6, 0, Math.PI * 2); eCtx.fill();
+                    eCtx.font = 'italic bold 22px "Times New Roman"';
+                    eCtx.textAlign = 'center';
+                    eCtx.fillText(p.id, px, centerY + py - 15);
                 }
-                sCtx.stroke();
-
-                // Current Time Cursor
-                const cursorX = (currentTime / config.period) * sW;
-                sCtx.setLineDash([2, 2]);
-                sCtx.strokeStyle = '#999';
-                sCtx.beginPath();
-                sCtx.moveTo(cursorX, 0);
-                sCtx.lineTo(cursorX, sH);
-                sCtx.stroke();
-                sCtx.setLineDash([]);
-
-                // Current State Dot
-                const currentDisp = getDisplacement(px, currentTime);
-                sCtx.fillStyle = '#000';
-                sCtx.beginPath();
-                sCtx.arc(cursorX, sCenterY + currentDisp, 3.5, 0, Math.PI * 2);
-                sCtx.fill();
-
-                // Labels
-                sCtx.font = '9px "Times New Roman"';
-                sCtx.fillStyle = '#000';
-                sCtx.fillText("0", 2, sH - 4);
-                sCtx.fillText("T", sW - 10, sH - 4);
             });
+            eCtx.restore();
+
+            // Draw ST Graphs
+            stCtxs.forEach((obj, i) => {
+                eCtx.save();
+                const xPos = margin + (i * (stW + gap));
+                const yPos = margin + 60 + mainH + gap;
+                eCtx.translate(xPos, yPos);
+                
+                const p = obj.point;
+                const sCenterY = stH / 2;
+                eCtx.strokeStyle = '#000';
+                eCtx.strokeRect(0, 0, stW, stH);
+                
+                eCtx.font = 'bold italic 16px "Times New Roman"';
+                eCtx.fillText(p.id, stW/2, -5);
+
+                eCtx.beginPath();
+                eCtx.lineWidth = 1.5;
+                const px = config.startX + (p.lambdaOffset * config.wavelength);
+                for (let tStep = 0; tStep <= stW; tStep++) {
+                    const t = (tStep / stW) * config.period;
+                    const disp = getDisplacement(px, t);
+                    if (tStep === 0) eCtx.moveTo(tStep, sCenterY + disp);
+                    else eCtx.lineTo(tStep, sCenterY + disp);
+                }
+                eCtx.stroke();
+
+                const cursorX = (currentTime / config.period) * stW;
+                eCtx.setLineDash([2, 2]); eCtx.strokeStyle = '#999';
+                eCtx.beginPath(); eCtx.moveTo(cursorX, 0); eCtx.lineTo(cursorX, stH); eCtx.stroke();
+                eCtx.setLineDash([]);
+                
+                const curD = getDisplacement(px, currentTime);
+                eCtx.fillStyle = '#000';
+                eCtx.beginPath(); eCtx.arc(cursorX, sCenterY + curD, 4, 0, Math.PI * 2); eCtx.fill();
+                eCtx.restore();
+            });
+
+            // Trigger Download
+            const link = document.createElement('a');
+            link.download = `wave_snapshot_t${currentTime.toFixed(2)}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
         }
 
         document.getElementById('ampRange').addEventListener('input', (e) => config.amplitude = parseInt(e.target.value));
@@ -387,7 +526,6 @@
         document.getElementsByName('direction').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 config.direction = e.target.value === 'right' ? 1 : -1;
-                // Update Arrow Visual
                 if (config.direction === 1) {
                     arrowSvg.innerHTML = '<line x1="0" y1="10" x2="70" y2="10" stroke="black" stroke-width="2" /><polygon points="68,4 78,10 68,16" fill="black" />';
                 } else {
@@ -401,7 +539,10 @@
             updatePlayButtonUI();
         });
 
-        window.onload = () => requestAnimationFrame(animate);
+        window.onload = () => {
+            updatePlayButtonUI();
+            requestAnimationFrame(animate);
+        };
     </script>
 </body>
 </html>
