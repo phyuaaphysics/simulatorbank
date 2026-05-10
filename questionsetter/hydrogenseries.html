@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>氫原子光譜出卷模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        /* 試卷模擬區樣式 */
+        .exam-paper {
+            background-color: white;
+            border: 2px solid #000;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        /* 光譜容器主框 */
+        .spectrum-box {
+            width: 100%;
+            height: 140px; 
+            border: 1.5px solid #000;
+            position: relative;
+            display: flex;
+            align-items: stretch;
+            overflow: visible; 
+        }
+
+        /* 彩色背景層 */
+        .spectrum-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background: linear-gradient(to right, 
+                #4b0082, #0000ff, #00ff00, #ffff00, #ff7f00, #ff0000
+            );
+            opacity: 0.9;
+        }
+
+        .spectrum-bg.active {
+            display: block;
+        }
+
+        .spectrum-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* 光譜線：橫跨兩側 */
+        .spectral-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #000;
+            cursor: pointer;
+            transition: width 0.1s;
+            height: 100%; 
+        }
+
+        .spectral-line:hover {
+            background-color: #6366f1;
+            width: 4px;
+            z-index: 20;
+        }
+
+        /* 標籤樣式：Times New Roman, 斜體, 取消粗體 */
+        .label-text {
+            position: absolute;
+            font-weight: normal; /* 取消粗體 */
+            font-size: 1.5rem;
+            transform: translateX(-50%);
+            bottom: -45px;
+            color: #000;
+            font-family: 'Times New Roman', Times, serif;
+            font-style: italic; /* 斜體 */
+        }
+
+        /* 波長指示文字樣式 */
+        .italic-times {
+            font-family: 'Times New Roman', Times, serif;
+            font-style: italic;
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        @media print {
+            .no-print { display: none; }
+            .exam-paper { border: none; padding: 20px; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-10">
+
+    <div class="max-w-5xl mx-auto">
+        <div class="no-print mb-6 flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">氫原子光譜出卷模擬器</h1>
+                <p class="text-gray-600 text-sm">老師專用：支援黑白橫跨風格與彩色吸收光譜。</p>
+            </div>
+            <div class="text-xs text-gray-400">Ver 2.2</div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- 左側控制項 -->
+            <div class="lg:col-span-1 space-y-4 no-print">
+                <div class="control-panel p-5 rounded-xl border border-gray-200">
+                    <h3 class="font-bold mb-3 border-b pb-2">1. 選擇系列</h3>
+                    <select id="seriesSelect" class="w-full p-2 border rounded-md mb-4 bg-gray-50 text-sm">
+                        <option value="1">萊曼系 (Lyman, n_f=1)</option>
+                        <option value="2" selected>巴耳末系 (Balmer, n_f=2)</option>
+                        <option value="3">帕申系 (Paschen, n_f=3)</option>
+                    </select>
+
+                    <h3 class="font-bold mb-3 border-b pb-2">2. 圖形風格</h3>
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-2 cursor-pointer p-2 bg-blue-50 rounded border border-blue-100">
+                            <input type="checkbox" id="colorMode" class="w-4 h-4">
+                            <span class="font-medium text-blue-800">開啟彩色背景模式</span>
+                        </label>
+
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="reverseX" class="w-4 h-4">
+                            <span>左右反轉 (長波長在左)</span>
+                        </label>
+                        
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">縮放比例 (Zoom):</label>
+                            <input type="range" id="zoomScale" min="0.5" max="3" step="0.1" value="1" class="w-full">
+                        </div>
+
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">線條粗細:</label>
+                            <input type="range" id="lineWidth" min="1" max="6" step="1" value="2" class="w-full">
+                        </div>
+                    </div>
+
+                    <h3 class="font-bold mt-6 mb-3 border-b pb-2">3. 操作說明</h3>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">
+                        • 點擊線條可依序標記 <i class="font-serif">A, B, C...</i><br>
+                        • 線條採橫跨兩側設計。<br>
+                        • 標籤已設定為 <span class="italic-times">Times New Roman Italic</span>。
+                    </p>
+                    
+                    <button onclick="resetLabels()" class="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition text-xs font-medium">
+                        清空標籤
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右側試卷模擬區 -->
+            <div class="lg:col-span-3">
+                <div id="captureArea" class="exam-paper shadow-2xl">
+                    <div class="w-full mb-12 text-center">
+                        <h2 id="examTitle" class="text-xl italic-times border-b-2 border-black inline-block px-12 pb-1">
+                            Hydrogen Emission Spectrum
+                        </h2>
+                    </div>
+
+                    <!-- 光譜主體框 -->
+                    <div class="spectrum-box" id="spectrumBox">
+                        <div id="spectrumBg" class="spectrum-bg"></div>
+                        <div class="spectrum-container" id="spectrumContainer">
+                            <!-- 光譜線由 JS 生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 底部波長指示 -->
+                    <div class="w-full mt-16 relative px-4">
+                        <div class="h-[1.5px] bg-black w-full relative">
+                            <div id="arrowIcon" class="absolute right-0 -top-[7px] text-lg leading-none">▶</div>
+                        </div>
+                        <div class="flex justify-between mt-3 italic-times text-sm">
+                            <span id="labelLeft">Wavelength (λ) increase</span>
+                            <span id="labelRight"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 no-print flex justify-center gap-4">
+                    <button onclick="window.print()" class="px-8 py-2 bg-slate-800 text-white rounded-full text-sm hover:bg-black transition shadow-lg flex items-center gap-2">
+                        <span>🖨️ 列印/匯出 PDF</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const RYDBERG = 1.097373e7;
+        const container = document.getElementById('spectrumContainer');
+        const spectrumBg = document.getElementById('spectrumBg');
+        const seriesSelect = document.getElementById('seriesSelect');
+        const colorMode = document.getElementById('colorMode');
+        const reverseX = document.getElementById('reverseX');
+        const zoomScale = document.getElementById('zoomScale');
+        const lineWidth = document.getElementById('lineWidth');
+        const arrowIcon = document.getElementById('arrowIcon');
+        
+        let labels = {}; 
+        let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        function calculateWavelength(ni, nf) {
+            const invLambda = RYDBERG * (1/(nf*nf) - 1/(ni*ni));
+            return (1 / invLambda) * 1e9; // nm
+        }
+
+        function renderSpectrum() {
+            container.innerHTML = '';
+            const nf = parseInt(seriesSelect.value);
+            const isReversed = reverseX.checked;
+            const isColor = colorMode.checked;
+            const scale = parseFloat(zoomScale.value);
+            const weight = lineWidth.value;
+
+            // 背景處理
+            if (isColor) {
+                spectrumBg.classList.add('active');
+                spectrumBg.style.background = isReversed 
+                    ? "linear-gradient(to left, #4b0082, #0000ff, #00ff00, #ffff00, #ff7f00, #ff0000)"
+                    : "linear-gradient(to right, #4b0082, #0000ff, #00ff00, #ffff00, #ff7f00, #ff0000)";
+            } else {
+                spectrumBg.classList.remove('active');
+            }
+
+            // 箭頭方向
+            arrowIcon.style.left = isReversed ? '-5px' : 'auto';
+            arrowIcon.style.right = isReversed ? 'auto' : '-5px';
+            arrowIcon.textContent = isReversed ? '◀' : '▶';
+
+            // 生成線條
+            let lines = [];
+            for (let ni = nf + 1; ni <= nf + 14; ni++) {
+                lines.push({ ni: ni, wl: calculateWavelength(ni, nf) });
+            }
+
+            const minWl = lines[lines.length - 1].wl;
+            const maxWl = lines[0].wl;
+            const range = maxWl - minWl;
+
+            const labelLeft = document.getElementById('labelLeft');
+            labelLeft.className = isReversed ? "w-full text-left italic-times" : "w-full text-right italic-times";
+            labelLeft.textContent = isReversed ? "← Wavelength (λ) Increase" : "Wavelength (λ) Increase →";
+
+            lines.forEach((line) => {
+                const lineEl = document.createElement('div');
+                lineEl.className = 'spectral-line';
+                
+                let pos = ((line.wl - minWl) / range) * 85 + 7.5; 
+                if (isReversed) pos = 100 - pos;
+
+                const centeredPos = 50 + (pos - 50) * scale;
+                if (centeredPos < 0 || centeredPos > 100) return;
+
+                lineEl.style.left = `${centeredPos}%`;
+                lineEl.style.width = `${weight}px`;
+                lineEl.style.height = '100%'; 
+
+                lineEl.onclick = () => toggleLabel(line.ni);
+
+                if (labels[line.ni]) {
+                    const labelSpan = document.createElement('span');
+                    labelSpan.className = 'label-text';
+                    labelSpan.textContent = labels[line.ni];
+                    lineEl.appendChild(labelSpan);
+                    
+                    lineEl.style.backgroundColor = "#000";
+                    lineEl.style.width = `${Math.max(weight, 3)}px`; 
+                }
+
+                container.appendChild(lineEl);
+            });
+        }
+
+        function toggleLabel(ni) {
+            if (labels[ni]) {
+                delete labels[ni];
+            } else {
+                const usedCount = Object.keys(labels).length;
+                labels[ni] = alphabet[usedCount % 26];
+            }
+            renderSpectrum();
+        }
+
+        function resetLabels() {
+            labels = {};
+            renderSpectrum();
+        }
+
+        seriesSelect.onchange = () => { labels = {}; renderSpectrum(); };
+        colorMode.onchange = renderSpectrum;
+        reverseX.onchange = renderSpectrum;
+        zoomScale.oninput = renderSpectrum;
+        lineWidth.oninput = renderSpectrum;
+
+        renderSpectrum();
+    </script>
+</body>
+</html>
