@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密立根光電效應模擬器 - 試題印刷標準版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* 字體設定：中文使用新細明體，數字與英文使用 Times New Roman */
+        body {
+            font-family: "Times New Roman", "PMingLiU", "新細明體", serif;
+            background-color: #f1f5f9;
+        }
+        
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #cbd5e1;
+            outline: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #1e293b;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+        
+        /* 物理符號強制斜體 */
+        .symbol-italic {
+            font-family: "Times New Roman", serif;
+            font-style: italic;
+        }
+
+        .label-zh {
+            font-family: "PMingLiU", "新細明體", serif;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .btn-action {
+            font-family: "PMingLiU", "新細明體", serif;
+            font-weight: bold;
+        }
+
+        /* 模擬帶箭頭的座標軸容器 */
+        .chart-container {
+            position: relative;
+            padding-right: 20px;
+            padding-top: 20px;
+        }
+        
+        /* 座標軸箭頭 CSS 繪製 */
+        .axis-arrow-x {
+            position: absolute;
+            right: 15px;
+            bottom: 60px; /* 根據 Chart.js 佈局調整 */
+            width: 0; height: 0;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-left: 10px solid #1e293b;
+            z-index: 10;
+        }
+        .axis-arrow-y {
+            position: absolute;
+            left: 71px; /* 根據 Chart.js 佈局調整 */
+            top: 15px;
+            width: 0; height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 10px solid #1e293b;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-300">
+        <!-- 頁首 -->
+        <div class="bg-slate-900 text-white p-6">
+            <h1 class="text-2xl font-bold italic mb-1">密立根光電效應實驗模擬器</h1>
+            <p class="text-slate-400 text-base">方程式：<span class="symbol-italic">Vₛ = (h/e)f - (Φ/e)</span></p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-0">
+            <!-- 控制區 -->
+            <div class="p-6 border-r border-slate-200 lg:col-span-1 space-y-6">
+                
+                <section>
+                    <h2 class="label-zh mb-3 text-slate-800">1. 選擇金屬</h2>
+                    <select id="metal-select" class="w-full p-2 bg-white border border-slate-300 rounded outline-none text-lg symbol-italic">
+                        <option value="cesium">Cesium (銫) - fₜ = 43.9</option>
+                        <option value="sodium">Sodium (鈉) - fₜ = 55.0</option>
+                        <option value="calcium">Calcium (鈣) - fₜ = 69.6</option>
+                        <option value="magnesium">Magnesium (鎂) - fₜ = 89.0</option>
+                    </select>
+                </section>
+
+                <section>
+                    <h2 class="label-zh mb-3 text-slate-800">2. 調整與紀錄</h2>
+                    <div class="bg-slate-50 p-4 rounded border border-slate-200 mb-4">
+                        <label class="block text-sm font-bold text-slate-600 mb-1 label-zh">頻率 (<span class="symbol-italic">f</span>):</label>
+                        <div class="text-xl text-blue-700 font-bold mb-2 text-center">
+                            <span id="freq-display" class="symbol-italic">70.0</span> <span class="symbol-italic">× 10¹³ Hz</span>
+                        </div>
+                        <input type="range" min="0" max="150" step="0.1" value="70" class="slider" id="freq-slider">
+                    </div>
+                    <button id="record-btn" class="w-full py-3 bg-slate-800 hover:bg-black text-white rounded btn-action text-lg shadow transition-all active:scale-95 mb-2">
+                        紀錄實驗數據點
+                    </button>
+                    <button onclick="clearGraph()" class="w-full py-1 text-xs text-red-600 hover:underline btn-action">
+                        清除所有數據
+                    </button>
+                </section>
+
+                <section>
+                    <div class="bg-black p-4 rounded text-center">
+                        <div class="text-[10px] text-slate-500 mb-1 label-zh">遏止電壓 (<span class="symbol-italic">Vₛ</span>)</div>
+                        <div id="voltage-readout" class="text-3xl text-red-500 font-mono italic">0.00 V</div>
+                    </div>
+                </section>
+
+                <section class="p-4 bg-slate-50 rounded border border-slate-200">
+                    <h2 class="text-xs font-bold text-slate-500 mb-2 label-zh">物理常數分析</h2>
+                    <div class="text-sm space-y-1">
+                        <div class="flex justify-between">
+                            <span class="label-zh">功函數 (<span class="symbol-italic">Φ</span>):</span>
+                            <span id="work-func" class="font-bold symbol-italic text-slate-800">1.82 eV</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="label-zh">斜率 (<span class="symbol-italic">h/e</span>):</span>
+                            <span class="font-bold symbol-italic text-slate-800">4.14 × 10⁻¹⁵</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 圖表區 -->
+            <div class="p-8 bg-white lg:col-span-3">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold label-zh text-slate-800">光電效應實驗數據：遏止電壓與頻率之關係圖</h2>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="axis-arrow-x"></div>
+                    <div class="axis-arrow-y"></div>
+                    <div class="h-[550px] w-full">
+                        <canvas id="experimentChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="mt-8 flex justify-between px-10 text-base font-bold text-slate-800">
+                    <div class="label-zh">橫軸：頻率 <span class="symbol-italic">f (10¹³ Hz)</span></div>
+                    <div class="label-zh">縱軸：遏止電壓 <span class="symbol-italic">Vₛ (V)</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const metals = {
+            cesium: { name: 'Cesium (銫)', ft: 43.9, color: '#000000', pointStyle: 'circle' },
+            sodium: { name: 'Sodium (鈉)', ft: 55.0, color: '#000000', pointStyle: 'rect' }, // 試題常用黑色
+            calcium: { name: 'Calcium (鈣)', ft: 69.6, color: '#000000', pointStyle: 'triangle' },
+            magnesium: { name: 'Magnesium (鎂)', ft: 89.0, color: '#000000', pointStyle: 'rectRot' }
+        };
+
+        const H_OVER_E = 0.041356; 
+        let chart;
+        let currentMetal = 'cesium';
+
+        const freqSlider = document.getElementById('freq-slider');
+        const freqDisplay = document.getElementById('freq-display');
+        const voltageReadout = document.getElementById('voltage-readout');
+        const metalSelect = document.getElementById('metal-select');
+        const workFuncDisplay = document.getElementById('work-func');
+        const recordBtn = document.getElementById('record-btn');
+
+        function initChart() {
+            const ctx = document.getElementById('experimentChart').getContext('2d');
+            
+            Chart.defaults.font.family = "'Times New Roman', 'PMingLiU', serif";
+            Chart.defaults.font.size = 14;
+            Chart.defaults.color = '#1e293b';
+
+            chart = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { right: 20, top: 10 } },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            min: 0,
+                            max: 150,
+                            ticks: { 
+                                stepSize: 10,
+                                font: { size: 16, weight: 'bold' },
+                                padding: 10
+                            },
+                            grid: { 
+                                color: '#cbd5e1',
+                                borderDash: [3, 3],
+                                lineWidth: 1,
+                                drawTicks: true
+                            }
+                        },
+                        y: {
+                            min: 0,
+                            max: 5,
+                            ticks: { 
+                                stepSize: 0.5,
+                                font: { size: 16, weight: 'bold' },
+                                padding: 10
+                            },
+                            grid: { 
+                                color: '#cbd5e1',
+                                borderDash: [3, 3],
+                                lineWidth: 1,
+                                drawTicks: true
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { 
+                                boxWidth: 15, 
+                                font: { size: 16, style: 'italic' },
+                                padding: 15
+                            }
+                        },
+                        tooltip: { enabled: true }
+                    }
+                }
+            });
+        }
+
+        function getOrCreateDataset(metalKey) {
+            let dataset = chart.data.datasets.find(ds => ds.metalKey === metalKey);
+            if (!dataset) {
+                dataset = {
+                    label: metals[metalKey].name,
+                    metalKey: metalKey,
+                    data: [],
+                    borderColor: metals[metalKey].color,
+                    backgroundColor: metals[metalKey].color,
+                    showLine: true, // 確保連成直線
+                    pointRadius: 4, // 數據點縮小
+                    pointHoverRadius: 6,
+                    borderWidth: 1.5, // 線條寬度適中
+                    pointStyle: metals[metalKey].pointStyle,
+                    tension: 0 // 絕對直線
+                };
+                chart.data.datasets.push(dataset);
+            }
+            return dataset;
+        }
+
+        function updateSimulation() {
+            const f = parseFloat(freqSlider.value);
+            const metal = metals[currentMetal];
+            freqDisplay.innerText = f.toFixed(1);
+
+            let vs = f >= metal.ft ? H_OVER_E * (f - metal.ft) : 0;
+            voltageReadout.innerText = vs.toFixed(2) + " V";
+            workFuncDisplay.innerText = (H_OVER_E * metal.ft).toFixed(2) + " eV";
+            
+            chart.update('none');
+        }
+
+        function recordPoint() {
+            const f = parseFloat(freqSlider.value);
+            const metal = metals[currentMetal];
+            const dataset = getOrCreateDataset(currentMetal);
+            
+            let vs = f >= metal.ft ? H_OVER_E * (f - metal.ft) : 0;
+            
+            const exists = dataset.data.some(p => p.x === f);
+            if (!exists) {
+                dataset.data.push({ x: f, y: vs });
+                
+                // 為了保證線條是延伸的直線，我們動態添加或更新兩個端點（截止頻率與圖表邊界）
+                // 1. 截止頻率點
+                if (!dataset.data.some(p => p.x === metal.ft)) {
+                    dataset.data.push({ x: metal.ft, y: 0 });
+                }
+                
+                // 2. 遠端延伸點（模擬直線延伸）
+                const maxF = 150;
+                const maxVs = H_OVER_E * (maxF - metal.ft);
+                const farPointIdx = dataset.data.findIndex(p => p.x === maxF);
+                if (farPointIdx > -1) dataset.data.splice(farPointIdx, 1);
+                dataset.data.push({ x: maxF, y: maxVs });
+
+                dataset.data.sort((a, b) => a.x - b.x);
+                chart.update();
+            }
+        }
+
+        function clearGraph() {
+            chart.data.datasets = [];
+            updateSimulation();
+        }
+
+        metalSelect.addEventListener('change', (e) => {
+            currentMetal = e.target.value;
+            updateSimulation();
+        });
+
+        freqSlider.addEventListener('input', updateSimulation);
+        recordBtn.addEventListener('click', recordPoint);
+
+        window.onload = () => {
+            initChart();
+            updateSimulation();
+        };
+    </script>
+</body>
+</html>
