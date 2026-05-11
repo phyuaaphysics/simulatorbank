@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雙縫干涉條紋模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; }
+        .canvas-container {
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+        canvas {
+            display: block;
+            background: white;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6">
+        <header class="mb-6 border-b pb-4">
+            <h1 class="text-2xl font-bold text-gray-800">物理考試圖案生成器：雙縫干涉</h1>
+            <p class="text-gray-500 text-sm mt-1">調整參數以生成適合測量練習的干涉條紋圖片</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 控制面板 -->
+            <div class="space-y-6 bg-gray-50 p-5 rounded-xl border">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">條紋間距 (Δx)</label>
+                    <input type="range" id="fringeSpacing" min="10" max="100" value="45" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>窄</span>
+                        <span>寬</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">條紋顏色</label>
+                    <div class="flex gap-3">
+                        <button onclick="updateColor('#ff0000')" class="w-8 h-8 rounded-full bg-red-600 border-2 border-white shadow-sm hover:scale-110 transition-transform"></button>
+                        <button onclick="updateColor('#00ff00')" class="w-8 h-8 rounded-full bg-green-500 border-2 border-white shadow-sm hover:scale-110 transition-transform"></button>
+                        <button onclick="updateColor('#4444ff')" class="w-8 h-8 rounded-full bg-blue-600 border-2 border-white shadow-sm hover:scale-110 transition-transform"></button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">背景暗度</label>
+                    <input type="range" id="bgDarkness" min="0" max="100" value="90" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-800">
+                </div>
+
+                <div class="pt-4 space-y-3 border-t">
+                    <button id="downloadBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        導出圖片 (.png)
+                    </button>
+                    <p class="text-[10px] text-gray-400 text-center">生成的圖片可用於 Word 或 PDF 試卷</p>
+                </div>
+            </div>
+
+            <!-- 預覽區 -->
+            <div class="lg:col-span-2 flex flex-col">
+                <div class="canvas-container flex-grow flex items-center justify-center p-4">
+                    <canvas id="examCanvas" width="800" height="300"></canvas>
+                </div>
+                <div class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <h3 class="text-sm font-bold text-blue-800 mb-1">使用說明：</h3>
+                    <ul class="text-xs text-blue-700 list-disc list-inside space-y-1">
+                        <li>調整滑桿改變條紋寬度，模擬不同波長或縫寬的效果。</li>
+                        <li>直尺刻度：長線代表釐米 (cm)，短線代表毫米 (mm)。</li>
+                        <li>建議將條紋邊緣與 0 刻度對齊，以便學生測量 5-10 個條紋的總長度。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('examCanvas');
+        const ctx = canvas.getContext('2d');
+        const fringeSpacingInput = document.getElementById('fringeSpacing');
+        const bgDarknessInput = document.getElementById('bgDarkness');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        let fringeColor = '#ff0000';
+        let pixelsPerCm = 150; // 模擬比例
+
+        function draw() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const spacing = parseInt(fringeSpacingInput.value);
+            const darkness = parseInt(bgDarknessInput.value) / 100;
+
+            // 清空畫布
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, w, h);
+
+            // 1. 繪製條紋區域背景
+            const fringeAreaHeight = 80;
+            const fringeAreaY = 50;
+            ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
+            ctx.fillRect(20, fringeAreaY, w - 40, fringeAreaHeight);
+
+            // 2. 繪製干涉條紋 (高斯分佈模擬亮斑)
+            const centerY = fringeAreaY + fringeAreaHeight / 2;
+            for (let x = 40; x < w - 40; x += spacing) {
+                const gradient = ctx.createRadialGradient(x, centerY, 2, x, centerY, spacing/1.8);
+                gradient.addColorStop(0, fringeColor);
+                gradient.addColorStop(0.4, fringeColor);
+                gradient.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = gradient;
+                ctx.globalAlpha = 0.9;
+                ctx.beginPath();
+                ctx.ellipse(x, centerY, spacing/2.2, fringeAreaHeight/3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 3. 繪製直尺
+            const rulerY = 160;
+            const rulerStart = 40;
+            
+            ctx.strokeStyle = "#333333";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(rulerStart, rulerY);
+            ctx.lineTo(w - 40, rulerY);
+            ctx.stroke();
+
+            // 繪製刻度
+            ctx.textAlign = "center";
+            ctx.font = "bold 18px Arial";
+            ctx.fillStyle = "#000000";
+
+            for (let i = 0; i <= 50; i++) { // 0 到 5.0 cm
+                const x = rulerStart + (i * (pixelsPerCm / 10));
+                if (x > w - 40) break;
+
+                ctx.beginPath();
+                ctx.moveTo(x, rulerY);
+                
+                if (i % 10 === 0) {
+                    // 釐米刻度 (長)
+                    ctx.lineTo(x, rulerY + 35);
+                    ctx.fillText(i / 10, x, rulerY + 60);
+                } else if (i % 5 === 0) {
+                    // 0.5 釐米刻度 (中)
+                    ctx.lineTo(x, rulerY + 25);
+                } else {
+                    // 毫米刻度 (短)
+                    ctx.lineTo(x, rulerY + 15);
+                }
+                ctx.stroke();
+            }
+
+            // 4. 添加文字標籤
+            ctx.font = "italic 16px 'Microsoft JhengHei'";
+            ctx.textAlign = "left";
+            ctx.fillText("有 cm 刻度的尺", rulerStart + 5.2 * (pixelsPerCm / 10) + 100, rulerY + 40);
+            
+            // 繪製箭頭指向尺子
+            ctx.beginPath();
+            ctx.moveTo(rulerStart + 4.8 * (pixelsPerCm / 10) + 80, rulerY + 35);
+            ctx.lineTo(rulerStart + 4.2 * (pixelsPerCm / 10), rulerY + 20);
+            ctx.stroke();
+            // 箭頭尖端
+            ctx.save();
+            ctx.translate(rulerStart + 4.2 * (pixelsPerCm / 10), rulerY + 20);
+            ctx.rotate(Math.atan2(15, 30));
+            ctx.beginPath();
+            ctx.moveTo(0,0);
+            ctx.lineTo(10, -5);
+            ctx.lineTo(10, 5);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function updateColor(color) {
+            fringeColor = color;
+            draw();
+        }
+
+        [fringeSpacingInput, bgDarknessInput].forEach(el => {
+            el.addEventListener('input', draw);
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'interference-exam-image.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // 初始化繪製
+        window.onload = draw;
+    </script>
+</body>
+</html>
