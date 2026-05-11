@@ -58,10 +58,11 @@
                 <div class="bg-white p-2 border border-gray-300 rounded shadow-inner">
                     <canvas id="simCanvas" width="800" height="500" class="w-full h-auto"></canvas>
                 </div>
-                <div class="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] font-bold uppercase tracking-wider">
+                <div class="mt-4 grid grid-cols-4 gap-2 text-center text-[10px] font-bold uppercase tracking-wider">
                     <div class="p-2 bg-red-50 rounded border border-red-100 text-red-600">點擊電極板切換極性</div>
-                    <div class="p-2 bg-blue-50 rounded border border-blue-100 text-blue-600">點擊磁場區域切換方向</div>
-                    <div class="p-2 bg-green-50 rounded border border-green-100 text-green-600">滑鼠拖曳電荷調整位置</div>
+                    <div class="p-2 bg-blue-50 rounded border border-blue-100 text-blue-600">點擊磁場切換方向</div>
+                    <div class="p-2 bg-green-50 rounded border border-green-100 text-green-600">拖曳電荷調整位置</div>
+                    <div class="p-2 bg-purple-50 rounded border border-purple-100 text-purple-600">點擊電荷切換正負</div>
                 </div>
             </div>
         </div>
@@ -81,6 +82,7 @@
         let isMono = false;
         let isAnimating = false;
         let isDragging = false;
+        let chargeType = 1; // 1: +, -1: -, 0: neutral
 
         let particle = { x: 120, y: 250, vx: 100, vy: 0 };
         let path = [];
@@ -115,7 +117,9 @@
 
             const dist = Math.hypot(mx - particle.x, my - particle.y);
             if (dist < 20) {
+                chargeType = chargeType === 1 ? -1 : (chargeType === -1 ? 0 : 1);
                 isDragging = true;
+                draw();
                 return;
             }
 
@@ -163,8 +167,8 @@
         function animate() {
             if (!isAnimating) return;
             let effectiveE = (plateTop === 1 ? 1 : (plateTop === -1 ? -1 : 0)) - (plateBottom === 1 ? 1 : (plateBottom === -1 ? -1 : 0));
-            const Fe = (eStrength / 10) * effectiveE;
-            const Fb = (particle.vx / 50) * (bStrength / 10) * bDirection;
+            const Fe = (eStrength / 10) * effectiveE * chargeType;
+            const Fb = (particle.vx / 50) * (bStrength / 10) * bDirection * chargeType;
             const ay = (Fe + Fb) * 0.1;
             particle.vy += ay;
             particle.x += particle.vx * 0.05;
@@ -181,15 +185,13 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 1. 繪製磁場 (對稱佈置，於 x=180~680 範圍內)
+            // 1. 繪製磁場
             ctx.fillStyle = isMono ? "#000" : "#6b7280";
             ctx.textAlign = "center";
-            
             const startX = 180;
             const endX = 680;
             const countX = 9;
             const countY = 4;
-            const spacingX = (endX - startX) / (countX);
             const spacingY = (370 - 130) / (countY + 1);
 
             for(let i=1; i <= countX; i++) {
@@ -212,16 +214,22 @@
             ctx.fillStyle = "#000";
             ctx.fillText(`B ${bDirection === 1 ? '(into page)' : '(out of page)'}`, 410, 85);
 
-            // 2. 繪製板子 (維持相同框線)
+            // 2. 繪製板子
             drawPlate(180, 100, plateTop);
             drawPlate(180, 370, plateBottom);
 
-            // 3. 繪製源頭 (框線幼)
+            // 3. 繪製源頭及標籤
             ctx.lineWidth = 1;
             ctx.strokeStyle = "#000";
             ctx.strokeRect(20, 230, 60, 40);
+            ctx.fillStyle = "#000";
             ctx.font = "12px Arial";
-            ctx.fillText("Source", 30, 225);
+            ctx.textAlign = "center";
+            ctx.fillText("Source", 50, 255);
+            // 添加中文「發射源」標籤
+            ctx.font = "bold 14px 'Noto Sans TC', sans-serif";
+            ctx.fillText("發射源", 50, 222);
+            ctx.textAlign = "left";
 
             // 4. 繪製軌跡
             if (path.length > 1) {
@@ -234,21 +242,21 @@
                 ctx.stroke();
             }
 
-            // 5. 繪製粒子 (框線幼)
+            // 5. 繪製粒子
             ctx.lineWidth = 1; 
             ctx.beginPath();
             ctx.arc(particle.x, particle.y, 11, 0, Math.PI*2);
-            ctx.fillStyle = isMono ? "white" : "#ef4444";
+            let pColor = isMono ? "white" : (chargeType === 1 ? "#ef4444" : (chargeType === -1 ? "#3b82f6" : "#9ca3af"));
+            ctx.fillStyle = pColor;
             ctx.fill();
             ctx.strokeStyle = "#000";
             ctx.stroke();
-            ctx.fillStyle = "#000";
+            ctx.fillStyle = (isMono || chargeType === 0) ? "#000" : "white";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
-            ctx.fillText("+", particle.x, particle.y + 5);
+            ctx.fillText(chargeType === 1 ? "+" : (chargeType === -1 ? "-" : "0"), particle.x, particle.y + 5);
             ctx.textAlign = "left";
             
-            // 速度箭頭
             if(!isAnimating) {
                 drawArrow(particle.x + 12, particle.y, particle.x + 55, particle.y, 1.5, "#000");
                 ctx.font = "italic 14px serif";
@@ -259,21 +267,12 @@
         function drawPlate(x, y, state) {
             ctx.lineWidth = 1;
             ctx.setLineDash([]);
-            
-            const bgPositive = isMono ? "#fff" : "#fee2e2";
-            const bgNegative = isMono ? "#fff" : "#dbeafe";
-            const bgNone = "#fff";
-
-            if (state === 0) {
-                ctx.strokeStyle = "#000"; // 維持相同框線
-                ctx.fillStyle = bgNone;
-                ctx.fillRect(x, y, 500, 30);
-                ctx.strokeRect(x, y, 500, 30);
-            } else {
-                ctx.fillStyle = state === 1 ? bgPositive : bgNegative;
-                ctx.strokeStyle = "#000";
-                ctx.fillRect(x, y, 500, 30);
-                ctx.strokeRect(x, y, 500, 30);
+            const bg = state === 1 ? (isMono ? "#fff" : "#fee2e2") : (state === -1 ? (isMono ? "#fff" : "#dbeafe") : "#fff");
+            ctx.fillStyle = bg;
+            ctx.strokeStyle = "#000";
+            ctx.fillRect(x, y, 500, 30);
+            ctx.strokeRect(x, y, 500, 30);
+            if (state !== 0) {
                 ctx.fillStyle = "#000";
                 ctx.font = "14px Arial";
                 const sign = state === 1 ? "+" : "-";
