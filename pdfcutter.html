@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 題目手動分割器 (支援 DPI 選擇)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f3f4f6; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        #canvas-container {
+            position: relative;
+            cursor: crosshair;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            background: white;
+            transform-origin: top center;
+            transition: transform 0.1s ease-out;
+        }
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #3b82f6;
+            background: rgba(59, 130, 246, 0.2);
+            pointer-events: none;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+    </style>
+</head>
+<body class="p-2 md:p-4">
+    <div class="flex flex-col h-full max-w-[1600px] mx-auto w-full gap-4">
+        <header class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+            <div>
+                <h1 class="text-xl font-bold text-gray-800">PDF 題目分割工具</h1>
+                <p class="text-xs text-gray-500 text-blue-600">功能：自定義檔名、靈活固定框與 DPI 解析度選擇</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <input type="file" id="file-input" accept="application/pdf" class="hidden" />
+                <button onclick="document.getElementById('file-input').click()" class="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-100 transition">上傳 PDF</button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 gap-4 overflow-hidden">
+            <!-- 左側控制面板 -->
+            <div class="w-72 flex flex-col gap-4 overflow-y-auto">
+                <!-- 檢視控制 -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-sm">
+                    <h2 class="font-bold text-gray-700 mb-3">檢視與解析度</h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <button id="prev-page" class="p-2 hover:bg-gray-100 rounded disabled:opacity-30 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                        <span class="font-medium"><span id="page-num">0</span> / <span id="page-count">0</span></span>
+                        <button id="next-page" class="p-2 hover:bg-gray-100 rounded disabled:opacity-30 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2">
+                            <button id="zoom-out" class="flex-1 py-1 border rounded hover:bg-gray-50">-</button>
+                            <span id="zoom-percent" class="text-[10px] w-10 text-center font-mono">100%</span>
+                            <button id="zoom-in" class="flex-1 py-1 border rounded hover:bg-gray-50">+</button>
+                        </div>
+                        
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] text-gray-500 font-bold uppercase">輸出解析度 (DPI)</label>
+                            <select id="dpi-select" class="w-full border rounded p-1 text-xs outline-blue-400 bg-white">
+                                <option value="72">72 DPI (螢幕顯示)</option>
+                                <option value="150" selected>150 DPI (普通清晰)</option>
+                                <option value="300">300 DPI (印刷品質)</option>
+                                <option value="600">600 DPI (超高解析)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 裁切設定 -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <h2 class="text-sm font-bold text-gray-700 mb-3">裁切與檔名設定</h2>
+                    
+                    <div class="space-y-3 mb-4 border-b pb-4">
+                        <label class="block text-[11px] text-gray-500 font-bold uppercase">檔名前綴</label>
+                        <input type="text" id="file-prefix" placeholder="例如: 2014-DSE-P1A" class="w-full border rounded p-2 text-xs outline-blue-400 font-mono shadow-sm">
+                    </div>
+
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                            <input type="checkbox" id="fix-w-toggle" class="w-3 h-3 text-blue-600 rounded">
+                            固定寬度 (px)
+                        </label>
+                        <input type="number" id="val-w" value="600" class="w-full border rounded p-1 text-xs px-2 outline-blue-400">
+                        
+                        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                            <input type="checkbox" id="fix-h-toggle" class="w-3 h-3 text-blue-600 rounded">
+                            固定高度 (px)
+                        </label>
+                        <input type="number" id="val-h" value="300" class="w-full border rounded p-1 text-xs px-2 outline-blue-400">
+                    </div>
+                </div>
+
+                <!-- 已選清單 -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex-1 flex flex-col overflow-hidden">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-sm font-bold text-gray-700">裁切清單 (<span id="crop-count">0</span>)</h2>
+                        <button id="clear-all" class="text-[11px] text-red-500 hover:underline">清空</button>
+                    </div>
+                    <div id="crops-list" class="flex-1 overflow-y-auto space-y-2 pr-1 mb-3 scroll-smooth text-center italic text-gray-400 text-[11px]">
+                        尚未裁切題目
+                    </div>
+                    <button id="download-all" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:bg-gray-300 shadow-lg text-sm" disabled>
+                        打包下載 ZIP
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右側 PDF 區域 -->
+            <div class="flex-1 bg-gray-200 rounded-xl relative overflow-auto flex justify-center p-4 shadow-inner" id="viewer-container">
+                <div id="canvas-container" class="hidden">
+                    <canvas id="pdf-canvas"></canvas>
+                    <div id="selection-layer" class="absolute inset-0"></div>
+                </div>
+                <div id="placeholder" class="flex flex-col items-center justify-center text-gray-400 text-center">
+                    <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" stroke-width="2"/></svg>
+                    <p class="text-lg font-medium">請點擊上方按鈕上傳 PDF</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-800/95 backdrop-blur text-white px-6 py-2 rounded-full opacity-0 transition-opacity pointer-events-none z-50 text-sm shadow-2xl border border-white/10"></div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let pageNum = 1;
+        let userZoom = 1.0;
+        let crops = [];
+        let isDrawing = false;
+        let startX, startY;
+        let currentSelection = null;
+        let renderTask = null;
+
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        const selectionLayer = document.getElementById('selection-layer');
+
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function() {
+                try {
+                    const typedarray = new Uint8Array(this.result);
+                    pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
+                    document.getElementById('page-count').textContent = pdfDoc.numPages;
+                    document.getElementById('placeholder').style.display = 'none';
+                    container.classList.remove('hidden');
+                    renderPage(1, true);
+                } catch (err) {
+                    console.error('PDF 載入錯誤:', err);
+                    showToast('無法讀取 PDF 檔案');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        async function renderPage(num, isAutoFit = false) {
+            // 關鍵修復：如果 pdfDoc 尚未初始化，則不進行操作
+            if (!pdfDoc) return;
+
+            if (renderTask) {
+                renderTask.cancel();
+            }
+
+            pageNum = num;
+            const page = await pdfDoc.getPage(num);
+            const viewer = document.getElementById('viewer-container');
+            const unscaledViewport = page.getViewport({ scale: 1 });
+            
+            if (isAutoFit) {
+                userZoom = (viewer.clientHeight - 60) / unscaledViewport.height;
+            }
+
+            const dpi = parseInt(document.getElementById('dpi-select').value);
+            const dpiScale = dpi / 72;
+            
+            const viewport = page.getViewport({ scale: dpiScale });
+            
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            const visualScale = (unscaledViewport.height * userZoom) / viewport.height;
+            
+            container.style.width = viewport.width + 'px';
+            container.style.height = viewport.height + 'px';
+            container.style.transform = `scale(${visualScale})`;
+            
+            document.getElementById('zoom-percent').textContent = Math.round(userZoom * 100) + '%';
+            
+            renderTask = page.render({ canvasContext: ctx, viewport });
+            
+            try {
+                await renderTask.promise;
+                renderTask = null;
+            } catch (err) {
+                if (err.name !== 'RenderingCancelledException') console.error(err);
+            }
+
+            document.getElementById('page-num').textContent = num;
+            document.getElementById('prev-page').disabled = (num <= 1);
+            document.getElementById('next-page').disabled = (num >= pdfDoc.numPages);
+        }
+
+        document.getElementById('dpi-select').addEventListener('change', () => {
+            if (pdfDoc) renderPage(pageNum);
+        });
+
+        document.getElementById('zoom-in').addEventListener('click', () => { 
+            if (pdfDoc) { userZoom += 0.1; renderPage(pageNum); }
+        });
+        document.getElementById('zoom-out').addEventListener('click', () => { 
+            if (pdfDoc) { userZoom = Math.max(0.1, userZoom - 0.1); renderPage(pageNum); }
+        });
+
+        selectionLayer.addEventListener('mousedown', e => {
+            if (!pdfDoc) return;
+            
+            const fixW = document.getElementById('fix-w-toggle').checked;
+            const fixH = document.getElementById('fix-h-toggle').checked;
+            const valW = parseInt(document.getElementById('val-w').value);
+            const valH = parseInt(document.getElementById('val-h').value);
+
+            const rect = container.getBoundingClientRect();
+            const currentDisplayScale = rect.width / canvas.width;
+            const x = (e.clientX - rect.left) / currentDisplayScale;
+            const y = (e.clientY - rect.top) / currentDisplayScale;
+
+            if (fixW && fixH) {
+                captureCrop({ left: x - valW/2, top: y - valH/2, width: valW, height: valH });
+                return;
+            }
+
+            isDrawing = true;
+            startX = x;
+            startY = y;
+            
+            currentSelection = document.createElement('div');
+            currentSelection.className = 'selection-box';
+            
+            if (fixW) {
+                currentSelection.style.width = valW + 'px';
+                currentSelection.style.left = (startX - valW/2) + 'px';
+            } else {
+                currentSelection.style.left = startX + 'px';
+            }
+
+            if (fixH) {
+                currentSelection.style.height = valH + 'px';
+                currentSelection.style.top = (startY - valH/2) + 'px';
+            } else {
+                currentSelection.style.top = startY + 'px';
+            }
+
+            selectionLayer.appendChild(currentSelection);
+        });
+
+        window.addEventListener('mousemove', e => {
+            if (!isDrawing) return;
+            const fixW = document.getElementById('fix-w-toggle').checked;
+            const fixH = document.getElementById('fix-h-toggle').checked;
+            
+            const rect = container.getBoundingClientRect();
+            const currentDisplayScale = rect.width / canvas.width;
+            let curX = (e.clientX - rect.left) / currentDisplayScale;
+            let curY = (e.clientY - rect.top) / currentDisplayScale;
+
+            if (!fixW) {
+                const w = curX - startX;
+                currentSelection.style.width = Math.abs(w) + 'px';
+                currentSelection.style.left = (w > 0 ? startX : curX) + 'px';
+            }
+            
+            if (!fixH) {
+                const h = curY - startY;
+                currentSelection.style.height = Math.abs(h) + 'px';
+                currentSelection.style.top = (h > 0 ? startY : curY) + 'px';
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            const r = {
+                left: parseFloat(currentSelection.style.left),
+                top: parseFloat(currentSelection.style.top),
+                width: parseFloat(currentSelection.style.width),
+                height: parseFloat(currentSelection.style.height)
+            };
+            if (r.width > 5 && r.height > 5) captureCrop(r);
+            selectionLayer.removeChild(currentSelection);
+            currentSelection = null;
+        });
+
+        function captureCrop(rect) {
+            const safeL = Math.max(0, rect.left);
+            const safeT = Math.max(0, rect.top);
+            const safeW = Math.min(rect.width, canvas.width - safeL);
+            const safeH = Math.min(rect.height, canvas.height - safeT);
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = safeW;
+            tempCanvas.height = safeH;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, safeL, safeT, safeW, safeH, 0, 0, safeW, safeH);
+            
+            crops.push(tempCanvas.toDataURL('image/png'));
+            updateCropsUI();
+            showToast(`已截取題目 #${crops.length}`);
+        }
+
+        function updateCropsUI() {
+            const list = document.getElementById('crops-list');
+            const prefix = document.getElementById('file-prefix').value.trim() || 'Question';
+            
+            if (crops.length === 0) {
+                list.innerHTML = '尚未裁切題目';
+                list.classList.add('text-center', 'italic', 'text-gray-400');
+            } else {
+                list.innerHTML = '';
+                list.classList.remove('text-center', 'italic', 'text-gray-400');
+                crops.forEach((src, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-gray-50 p-2 rounded border group relative hover:border-blue-400 transition-colors shadow-sm text-left';
+                    div.innerHTML = `
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold text-gray-500 font-mono">${prefix}-${i+1}.png</span>
+                            <button onclick="removeCrop(${i})" class="text-red-400 hover:text-red-600 text-[11px]">移除</button>
+                        </div>
+                        <img src="${src}" class="max-w-full mx-auto bg-white rounded">
+                    `;
+                    list.appendChild(div);
+                });
+            }
+            
+            document.getElementById('crop-count').textContent = crops.length;
+            document.getElementById('download-all').disabled = (crops.length === 0);
+            list.scrollTop = list.scrollHeight;
+        }
+
+        document.getElementById('file-prefix').addEventListener('input', updateCropsUI);
+
+        window.removeCrop = (i) => { crops.splice(i, 1); updateCropsUI(); };
+        document.getElementById('clear-all').addEventListener('click', () => { if(confirm('確定要清空所有裁切項目嗎？')) {crops=[]; updateCropsUI();} });
+        document.getElementById('prev-page').addEventListener('click', () => { if(pdfDoc && pageNum > 1) renderPage(pageNum - 1); });
+        document.getElementById('next-page').addEventListener('click', () => { if(pdfDoc && pageNum < pdfDoc.numPages) renderPage(pageNum + 1); });
+
+        document.getElementById('download-all').addEventListener('click', async () => {
+            const btn = document.getElementById('download-all');
+            const prefix = document.getElementById('file-prefix').value.trim() || 'Question';
+            btn.textContent = '打包中...';
+            btn.disabled = true;
+
+            try {
+                const zip = new JSZip();
+                crops.forEach((data, i) => {
+                    zip.file(`${prefix}-${i+1}.png`, data.split(',')[1], {base64: true});
+                });
+
+                const content = await zip.generateAsync({type:"blob"});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `${prefix}_export.zip`;
+                link.click();
+                showToast('下載成功');
+            } catch (err) {
+                console.error('打包錯誤:', err);
+                showToast('下載失敗');
+            } finally {
+                btn.textContent = '打包下載 ZIP';
+                btn.disabled = false;
+            }
+        });
+
+        function showToast(m) {
+            const t = document.getElementById('toast');
+            t.textContent = m; t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 1500);
+        }
+
+        document.getElementById('viewer-container').addEventListener('wheel', e => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                if (pdfDoc) {
+                    if (e.deltaY < 0) userZoom += 0.05;
+                    else userZoom = Math.max(0.1, userZoom - 0.05);
+                    renderPage(pageNum);
+                }
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
