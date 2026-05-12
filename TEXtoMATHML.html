@@ -161,7 +161,8 @@
                 // Get the MathML via MathJax internal API
                 try {
                     const mml = window.MathJax.startup.adaptor.outerHTML(container.querySelector('math'));
-                    combinedMathML += `<!-- Equation ${index + 1} -->\n${formatXml(mml)}\n\n`;
+                    // Removed the Equation comment for a cleaner output
+                    combinedMathML += `${formatXml(mml)}\n\n`;
                 } catch (e) {
                     console.warn("Could not extract MathML for an element", e);
                 }
