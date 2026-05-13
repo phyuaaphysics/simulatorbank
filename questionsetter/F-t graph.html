@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理圖像製作工具 (F-t圖)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', "Times New Roman", sans-serif; }
+        canvas { 
+            touch-action: none; 
+            cursor: crosshair; 
+            background-color: white;
+            max-width: 100%;
+            max-height: 70vh;
+            height: auto;
+            object-fit: contain;
+        }
+        .control-panel { max-height: 100vh; overflow-y: auto; }
+        input[type="number"], input[type="text"] { font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<div class="min-h-screen flex flex-col md:flex-row">
+    <aside class="w-full md:w-80 bg-white border-r border-gray-200 p-5 control-panel shadow-sm">
+        <h1 class="text-lg font-bold mb-5 text-gray-900 border-b pb-3 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+            物理圖像產生器
+        </h1>
+        
+        <section class="mb-6">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">座標軸設定 (F - t)</h2>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] mb-1 font-bold">最大力 Max F (N)</label>
+                    <input type="number" id="maxY" value="12" class="w-full border rounded p-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] mb-1">力間距 Step F</label>
+                    <input type="number" id="stepY" value="2" class="w-full border rounded p-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] mb-1 font-bold">最大時間 Max t (s)</label>
+                    <input type="number" id="maxX" value="4" class="w-full border rounded p-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] mb-1">時間間距 Step t</label>
+                    <input type="number" id="stepX" value="1" class="w-full border rounded p-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-6">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">外觀設定</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[10px] mb-1 font-bold">字體大小 (px)</label>
+                    <input type="number" id="fontSize" value="32" min="12" max="80" class="w-full border rounded p-1.5 text-sm">
+                </div>
+                <label class="flex items-center space-x-2 p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" id="showPoints" class="w-4 h-4 text-blue-600 rounded">
+                    <span class="text-xs font-medium text-gray-700">顯示編輯紅點 (出題請關閉)</span>
+                </label>
+                <label class="flex items-center space-x-2 p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" id="snapToGrid" checked class="w-4 h-4 text-blue-600 rounded">
+                    <span class="text-xs font-medium text-gray-700">自動吸附格點</span>
+                </label>
+            </div>
+        </section>
+
+        <div class="pt-4 border-t border-gray-100">
+            <button id="downloadBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded transition-all flex items-center justify-center shadow-md">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                下載圖片 (PNG)
+            </button>
+            <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <p class="text-[10px] text-blue-700 leading-relaxed font-medium">
+                    • 參考圖片 image_2df0ae.png 樣式。<br>
+                    • 符號 <i>F</i>, <i>t</i> 已設為斜體。<br>
+                    • 網格為強化深灰色虛線。<br>
+                    • 提示：滑鼠點擊轉折處可直接拖曳調整數值。
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex items-center justify-center p-6 bg-gray-200 min-h-0">
+        <div class="bg-white shadow-2xl rounded-xl p-4 max-w-full max-h-full overflow-hidden flex items-center justify-center">
+            <canvas id="graphCanvas" width="1000" height="800" class="border border-gray-200"></canvas>
+        </div>
+    </main>
+</div>
+
+<script>
+const canvas = document.getElementById('graphCanvas');
+const ctx = canvas.getContext('2d');
+
+// 初始點位符合圖片 2df0ae (0,0) -> (1,10) -> (3,0)
+let points = [
+    { x: 0, y: 0 },
+    { x: 1, y: 10 },
+    { x: 3, y: 0 }
+];
+
+let config = {
+    maxX: 4,
+    maxY: 12,
+    stepX: 1,
+    stepY: 2,
+    fontSize: 32,
+    padding: { top: 100, right: 100, bottom: 100, left: 100 },
+    snapToGrid: true,
+    showPoints: false 
+};
+
+function mapX(val) {
+    const usableWidth = canvas.width - config.padding.left - config.padding.right;
+    return config.padding.left + (val / config.maxX) * usableWidth;
+}
+
+function mapY(val) {
+    const usableHeight = canvas.height - config.padding.top - config.padding.bottom;
+    return canvas.height - config.padding.bottom - (val / config.maxY) * usableHeight;
+}
+
+function unmapX(px) {
+    const usableWidth = canvas.width - config.padding.left - config.padding.right;
+    return ((px - config.padding.left) / usableWidth) * config.maxX;
+}
+
+function unmapY(py) {
+    const usableHeightTotal = canvas.height - config.padding.top - config.padding.bottom;
+    const dy = canvas.height - config.padding.bottom - py;
+    return (dy / usableHeightTotal) * config.maxY;
+}
+
+function render(targetCtx, isExport = false) {
+    const fSize = config.fontSize;
+    const fontName = '"Times New Roman"';
+    
+    // 動態根據字體大小調整邊距，確保不遮擋
+    config.padding.bottom = fSize * 3.5; 
+    config.padding.left = fSize * 4.0;
+    config.padding.top = fSize * 3.5;
+    config.padding.right = fSize * 4.5;
+
+    targetCtx.fillStyle = '#ffffff';
+    targetCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 1. 繪製深灰色虛線網格 (與 image_2df0ae 樣式同步)
+    targetCtx.strokeStyle = '#666666';
+    targetCtx.lineWidth = 1.5;
+    targetCtx.setLineDash([8, 6]); 
+    targetCtx.beginPath();
+    for (let y = 0; y <= config.maxY; y += config.stepY) {
+        const py = mapY(y);
+        targetCtx.moveTo(config.padding.left, py);
+        targetCtx.lineTo(canvas.width - config.padding.right, py);
+    }
+    for (let x = 0; x <= config.maxX; x += config.stepX) {
+        const px = mapX(x);
+        targetCtx.moveTo(px, config.padding.top);
+        targetCtx.lineTo(px, canvas.height - config.padding.bottom);
+    }
+    targetCtx.stroke();
+    targetCtx.setLineDash([]); 
+
+    // 2. 繪製主座標軸與箭頭
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 4;
+    targetCtx.lineCap = 'butt';
+    targetCtx.beginPath();
+    // Y 軸
+    targetCtx.moveTo(config.padding.left, config.padding.top - (fSize * 1.2));
+    targetCtx.lineTo(config.padding.left, canvas.height - config.padding.bottom);
+    // X 軸
+    targetCtx.lineTo(canvas.width - config.padding.right + (fSize * 1.2), canvas.height - config.padding.bottom);
+    targetCtx.stroke();
+
+    // 實心箭頭
+    targetCtx.fillStyle = '#000000';
+    const arrowSize = fSize * 0.45;
+    // Y 軸箭頭
+    targetCtx.beginPath();
+    targetCtx.moveTo(config.padding.left - arrowSize, config.padding.top - (fSize * 1.2));
+    targetCtx.lineTo(config.padding.left + arrowSize, config.padding.top - (fSize * 1.2));
+    targetCtx.lineTo(config.padding.left, config.padding.top - (fSize * 1.2) - arrowSize * 2.2);
+    targetCtx.fill();
+    // X 軸箭頭
+    targetCtx.beginPath();
+    targetCtx.moveTo(canvas.width - config.padding.right + (fSize * 1.2), canvas.height - config.padding.bottom - arrowSize);
+    targetCtx.lineTo(canvas.width - config.padding.right + (fSize * 1.2), canvas.height - config.padding.bottom + arrowSize);
+    targetCtx.lineTo(canvas.width - config.padding.right + (fSize * 1.2) + arrowSize * 2.2, canvas.height - config.padding.bottom);
+    targetCtx.fill();
+
+    // 3. 標籤繪製 (F / N 與 t / s) - 符號斜體
+    targetCtx.font = `${fSize}px ${fontName}`;
+    targetCtx.textAlign = 'right';
+    targetCtx.textBaseline = 'middle';
+    
+    // Y 標籤: F / N
+    const yLabelY = config.padding.top - (fSize * 2.5);
+    const unitPartY = ' / N';
+    const unitWidthY = targetCtx.measureText(unitPartY).width;
+    targetCtx.fillText(unitPartY, config.padding.left - 10, yLabelY);
+    targetCtx.font = `italic ${fSize}px ${fontName}`;
+    targetCtx.fillText('F', config.padding.left - 10 - unitWidthY, yLabelY);
+
+    // X 標籤: t / s
+    targetCtx.textAlign = 'left';
+    targetCtx.font = `italic ${fSize}px ${fontName}`;
+    const xLabelX = canvas.width - config.padding.right + (fSize * 0.5);
+    const xLabelY = canvas.height - config.padding.bottom + (fSize * 2.5);
+    targetCtx.fillText('t', xLabelX, xLabelY);
+    targetCtx.font = `${fSize}px ${fontName}`;
+    const tWidth = targetCtx.measureText('t').width;
+    targetCtx.fillText(' / s', xLabelX + tWidth + 5, xLabelY);
+
+    // 4. 座標軸數字 (與標籤等大)
+    targetCtx.textAlign = 'right';
+    for (let y = 0; y <= config.maxY; y += config.stepY) {
+        targetCtx.fillText(y, config.padding.left - 20, mapY(y) + (fSize/3));
+    }
+    targetCtx.textAlign = 'center';
+    for (let x = 0; x <= config.maxX; x += config.stepX) {
+        targetCtx.fillText(x, mapX(x), canvas.height - config.padding.bottom + (fSize * 1.2));
+    }
+
+    // 5. 繪製數據折線 (加粗)
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 6;
+    targetCtx.lineJoin = 'round';
+    targetCtx.lineCap = 'round';
+    targetCtx.beginPath();
+    points.forEach((p, i) => {
+        if (i === 0) targetCtx.moveTo(mapX(p.x), mapY(p.y));
+        else targetCtx.lineTo(mapX(p.x), mapY(p.y));
+    });
+    targetCtx.stroke();
+
+    // 6. 編輯用紅點 (預設關閉)
+    if (!isExport && config.showPoints) {
+        points.forEach((p, i) => {
+            targetCtx.fillStyle = draggingIdx === i ? '#2563eb' : '#ff4444';
+            targetCtx.beginPath();
+            targetCtx.arc(mapX(p.x), mapY(p.y), 12, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.strokeStyle = 'white';
+            targetCtx.lineWidth = 3;
+            targetCtx.stroke();
+        });
+    }
+}
+
+let draggingIdx = -1;
+
+function getEventPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
+}
+
+function handleStart(e) {
+    const pos = getEventPos(e);
+    // 感應半徑 40px，即使沒顯示紅點也能抓到
+    draggingIdx = points.findIndex(p => {
+        const dx = mapX(p.x) - pos.x;
+        const dy = mapY(p.y) - pos.y;
+        return Math.sqrt(dx * dx + dy * dy) < 45; 
+    });
+    if (draggingIdx !== -1) e.preventDefault();
+}
+
+function handleMove(e) {
+    if (draggingIdx === -1) return;
+    const pos = getEventPos(e);
+    let valX = unmapX(pos.x);
+    let valY = unmapY(pos.y);
+
+    if (config.snapToGrid) {
+        valX = Math.round(valX / (config.stepX / 4)) * (config.stepX / 4);
+        valY = Math.round(valY / (config.stepY / 4)) * (config.stepY / 4);
+    }
+
+    valX = Math.max(0, Math.min(config.maxX, valX));
+    valY = Math.max(0, Math.min(config.maxY, valY));
+
+    // 確保 X 軸點位不會互相穿越
+    if (draggingIdx > 0) valX = Math.max(points[draggingIdx-1].x, valX);
+    if (draggingIdx < points.length - 1) valX = Math.min(points[draggingIdx+1].x, valX);
+
+    points[draggingIdx].x = valX;
+    points[draggingIdx].y = valY;
+    render(ctx);
+}
+
+function handleEnd() {
+    draggingIdx = -1;
+    render(ctx);
+}
+
+const inputs = ['maxY', 'stepY', 'maxX', 'stepX', 'showPoints', 'snapToGrid', 'fontSize'];
+inputs.forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+        config.maxY = parseFloat(document.getElementById('maxY').value) || 12;
+        config.stepY = parseFloat(document.getElementById('stepY').value) || 2;
+        config.maxX = parseFloat(document.getElementById('maxX').value) || 4;
+        config.stepX = parseFloat(document.getElementById('stepX').value) || 1;
+        config.fontSize = parseInt(document.getElementById('fontSize').value) || 32;
+        config.showPoints = document.getElementById('showPoints').checked;
+        config.snapToGrid = document.getElementById('snapToGrid').checked;
+        render(ctx);
+    });
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tCtx = tempCanvas.getContext('2d');
+    render(tCtx, true); // 下載時強制隱藏編輯紅點
+    const link = document.createElement('a');
+    link.download = `physics_graph_ft_${Date.now()}.png`;
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+});
+
+canvas.addEventListener('mousedown', handleStart);
+window.addEventListener('mousemove', handleMove);
+window.addEventListener('mouseup', handleEnd);
+canvas.addEventListener('touchstart', handleStart);
+window.addEventListener('touchmove', handleMove);
+window.addEventListener('touchend', handleEnd);
+
+// 頁面載入後渲染
+window.onload = () => render(ctx);
+</script>
+</body>
+</html>
