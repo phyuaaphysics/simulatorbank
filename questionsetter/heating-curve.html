@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加熱曲線圖製作工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        canvas { 
+            touch-action: none; 
+            cursor: crosshair; 
+            background-color: white;
+        }
+        .control-panel { max-height: 100vh; overflow-y: auto; }
+        input[type="number"] { font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<div class="min-h-screen flex flex-col md:flex-row">
+    <aside class="w-full md:w-80 bg-white border-r border-gray-200 p-6 control-panel shadow-sm">
+        <h1 class="text-xl font-bold mb-6 text-gray-900 border-b pb-4">加熱曲線產生器</h1>
+        
+        <section class="mb-8">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">座標軸範圍</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs mb-1">最大溫度 (℃)</label>
+                    <input type="number" id="maxY" value="120" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs mb-1">溫度間距</label>
+                    <input type="number" id="stepY" value="20" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs mb-1">最大時間 (min)</label>
+                    <input type="number" id="maxX" value="12" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs mb-1">時間間距</label>
+                    <input type="number" id="stepX" value="2" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">樣式設定</h2>
+            <div class="space-y-3">
+                <label class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" id="showPoints" class="w-4 h-4 text-blue-600 rounded">
+                    <span class="text-sm font-medium text-gray-700">顯示編輯紅點</span>
+                </label>
+                <label class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" id="snapToGrid" checked class="w-4 h-4 text-blue-600 rounded">
+                    <span class="text-sm font-medium text-gray-700">自動吸附格點</span>
+                </label>
+            </div>
+        </section>
+
+        <div class="pt-6 border-t border-gray-100">
+            <button id="downloadBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all flex items-center justify-center shadow-lg">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                下載 PNG 圖檔
+            </button>
+            <p class="mt-4 text-[11px] text-gray-500 leading-relaxed">
+                • 提示：所有數字與標籤已設為 32px Times New Roman。<br>
+                • 物理量 <span class="italic font-serif">θ, t</span> 已自動設為斜體。<br>
+                • 滑鼠點擊轉折處即可直接拖曳線條。
+            </p>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex items-center justify-center p-8 bg-gray-200 min-h-[600px]">
+        <div class="bg-white shadow-2xl rounded p-4 overflow-auto max-w-full">
+            <canvas id="graphCanvas" width="900" height="700" class="shadow-inner border border-gray-300"></canvas>
+        </div>
+    </main>
+</div>
+
+<script>
+const canvas = document.getElementById('graphCanvas');
+const ctx = canvas.getContext('2d');
+
+let points = [
+    { x: 0, y: 20 },
+    { x: 2, y: 80 },
+    { x: 8, y: 80 },
+    { x: 11, y: 95 }
+];
+
+let config = {
+    maxX: 12,
+    maxY: 120,
+    stepX: 2,
+    stepY: 20,
+    // 加大 Padding 以容納更大的數字
+    padding: { top: 100, right: 120, bottom: 120, left: 130 },
+    showGrid: true,
+    snapToGrid: true,
+    showPoints: false 
+};
+
+let draggingIdx = -1;
+
+function mapX(val) {
+    const usableWidth = canvas.width - config.padding.left - config.padding.right;
+    return config.padding.left + (val / config.maxX) * usableWidth;
+}
+
+function mapY(val) {
+    const usableHeight = canvas.height - config.padding.top - config.padding.bottom;
+    return canvas.height - config.padding.bottom - (val / config.maxY) * usableHeight;
+}
+
+function unmapX(px) {
+    const usableWidth = canvas.width - config.padding.left - config.padding.right;
+    return ((px - config.padding.left) / usableWidth) * config.maxX;
+}
+
+function unmapY(py) {
+    const usableHeight = canvas.height - config.padding.bottom - py;
+    const usableHeightTotal = canvas.height - config.padding.top - config.padding.bottom;
+    return (usableHeight / usableHeightTotal) * config.maxY;
+}
+
+function render(targetCtx, isExport = false) {
+    targetCtx.fillStyle = '#ffffff';
+    targetCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 1. 繪製深灰色虛線網格 (加粗 dotted 效果)
+    targetCtx.strokeStyle = '#666666';
+    targetCtx.lineWidth = 1.5;
+    targetCtx.setLineDash([4, 4]);
+    targetCtx.beginPath();
+    for (let y = 0; y <= config.maxY; y += config.stepY) {
+        const py = mapY(y);
+        targetCtx.moveTo(config.padding.left, py);
+        targetCtx.lineTo(canvas.width - config.padding.right, py);
+    }
+    for (let x = 0; x <= config.maxX; x += config.stepX) {
+        const px = mapX(x);
+        targetCtx.moveTo(px, config.padding.top);
+        targetCtx.lineTo(px, canvas.height - config.padding.bottom);
+    }
+    targetCtx.stroke();
+    targetCtx.setLineDash([]); 
+
+    // 2. 繪製實體座標軸 (黑色)
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 3;
+    targetCtx.beginPath();
+    // Y 軸
+    targetCtx.moveTo(config.padding.left, config.padding.top - 50);
+    targetCtx.lineTo(config.padding.left, canvas.height - config.padding.bottom);
+    // X 軸
+    targetCtx.lineTo(canvas.width - config.padding.right + 50, canvas.height - config.padding.bottom);
+    targetCtx.stroke();
+
+    // 繪製箭頭
+    targetCtx.fillStyle = '#000000';
+    // Y 箭頭
+    targetCtx.beginPath();
+    targetCtx.moveTo(config.padding.left - 10, config.padding.top - 50);
+    targetCtx.lineTo(config.padding.left + 10, config.padding.top - 50);
+    targetCtx.lineTo(config.padding.left, config.padding.top - 75);
+    targetCtx.fill();
+    // X 箭頭
+    targetCtx.beginPath();
+    targetCtx.moveTo(canvas.width - config.padding.right + 50, canvas.height - config.padding.bottom - 10);
+    targetCtx.lineTo(canvas.width - config.padding.right + 50, canvas.height - config.padding.bottom + 10);
+    targetCtx.lineTo(canvas.width - config.padding.right + 75, canvas.height - config.padding.bottom);
+    targetCtx.fill();
+
+    targetCtx.fillStyle = '#000000';
+    
+    // Y 軸標籤: θ (斜體) / °C (正體) - 統一 32px
+    targetCtx.textAlign = 'right';
+    const yLabelX = config.padding.left - 15;
+    const yLabelY = config.padding.top - 55;
+    targetCtx.font = 'italic 32px "Times New Roman"';
+    targetCtx.fillText('θ', yLabelX - 60, yLabelY);
+    targetCtx.font = '32px "Times New Roman"';
+    targetCtx.fillText(' / °C', yLabelX, yLabelY);
+
+    // X 軸標籤: t (斜體) / min (正體) - 統一 32px
+    targetCtx.textAlign = 'left';
+    const xLabelX = canvas.width - config.padding.right + 15;
+    const xLabelY = canvas.height - config.padding.bottom + 85;
+    targetCtx.font = 'italic 32px "Times New Roman"';
+    targetCtx.fillText('t', xLabelX, xLabelY);
+    targetCtx.font = '32px "Times New Roman"';
+    const tWidth = targetCtx.measureText('t').width;
+    targetCtx.fillText(' / 分鐘', xLabelX + tWidth + 5, xLabelY);
+
+    // 刻度數字 (與軸標籤相同 32px)
+    targetCtx.font = '32px "Times New Roman"';
+    
+    // Y 軸數字
+    targetCtx.textAlign = 'right';
+    for (let y = 0; y <= config.maxY; y += config.stepY) {
+        targetCtx.fillText(y, config.padding.left - 20, mapY(y) + 12);
+    }
+    
+    // X 軸數字
+    targetCtx.textAlign = 'center';
+    for (let x = 0; x <= config.maxX; x += config.stepX) {
+        targetCtx.fillText(x, mapX(x), canvas.height - config.padding.bottom + 50);
+    }
+
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 5;
+    targetCtx.lineJoin = 'round';
+    targetCtx.lineCap = 'round';
+    targetCtx.beginPath();
+    points.forEach((p, i) => {
+        if (i === 0) targetCtx.moveTo(mapX(p.x), mapY(p.y));
+        else targetCtx.lineTo(mapX(p.x), mapY(p.y));
+    });
+    targetCtx.stroke();
+
+    // 繪製編輯點 (僅在 UI 且開啟時顯示，下載時不顯示)
+    if (!isExport && config.showPoints) {
+        points.forEach((p, i) => {
+            targetCtx.fillStyle = draggingIdx === i ? '#2563eb' : '#ff4444';
+            targetCtx.beginPath();
+            targetCtx.arc(mapX(p.x), mapY(p.y), 10, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.strokeStyle = 'white';
+            targetCtx.lineWidth = 3;
+            targetCtx.stroke();
+        });
+    }
+}
+
+function getEventPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    // 考慮 CSS 縮放後的實際座標
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
+}
+
+function handleStart(e) {
+    const pos = getEventPos(e);
+    // 命中範圍設定為 30 像素
+    draggingIdx = points.findIndex(p => {
+        const dx = mapX(p.x) - pos.x;
+        const dy = mapY(p.y) - pos.y;
+        return Math.sqrt(dx * dx + dy * dy) < 40; 
+    });
+    if (draggingIdx !== -1) {
+        e.preventDefault();
+    }
+}
+
+function handleMove(e) {
+    if (draggingIdx === -1) return;
+    
+    const pos = getEventPos(e);
+    let valX = unmapX(pos.x);
+    let valY = unmapY(pos.y);
+
+    if (config.snapToGrid) {
+        valX = Math.round(valX / (config.stepX / 4)) * (config.stepX / 4);
+        valY = Math.round(valY / (config.stepY / 4)) * (config.stepY / 4);
+    }
+
+    valX = Math.max(0, Math.min(config.maxX, valX));
+    valY = Math.max(0, Math.min(config.maxY, valY));
+
+    // 保持 X 軸遞增
+    if (draggingIdx > 0) valX = Math.max(points[draggingIdx-1].x, valX);
+    if (draggingIdx < points.length - 1) valX = Math.min(points[draggingIdx+1].x, valX);
+
+    points[draggingIdx].x = valX;
+    points[draggingIdx].y = valY;
+    render(ctx);
+}
+
+function handleEnd() {
+    draggingIdx = -1;
+    render(ctx);
+}
+
+const inputs = ['maxY', 'stepY', 'maxX', 'stepX', 'showPoints', 'snapToGrid'];
+inputs.forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+        config.maxY = parseFloat(document.getElementById('maxY').value) || 120;
+        config.stepY = parseFloat(document.getElementById('stepY').value) || 20;
+        config.maxX = parseFloat(document.getElementById('maxX').value) || 12;
+        config.stepX = parseFloat(document.getElementById('stepX').value) || 2;
+        config.showPoints = document.getElementById('showPoints').checked;
+        config.snapToGrid = document.getElementById('snapToGrid').checked;
+        render(ctx);
+    });
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tCtx = tempCanvas.getContext('2d');
+    render(tCtx, true); // 下載時強制隱藏紅點
+
+    const link = document.createElement('a');
+    link.download = `heating_curve_${Date.now()}.png`;
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+});
+
+canvas.addEventListener('mousedown', handleStart);
+window.addEventListener('mousemove', handleMove);
+window.addEventListener('mouseup', handleEnd);
+canvas.addEventListener('touchstart', handleStart);
+window.addEventListener('touchmove', handleMove);
+window.addEventListener('touchend', handleEnd);
+
+// 初始化繪製
+window.onload = () => render(ctx);
+</script>
+
+</body>
+</html>
