@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExamCraft - 1.5cm Margin / Fixed Print PDF</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Times New Roman', Times, 'Noto Serif TC', serif; 
+            background-color: #f1f5f9; 
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Standard A4 Paper Setup for Preview */
+        #paper-container {
+            transform-origin: top center;
+            transition: transform 0.2s ease-in-out;
+            margin-top: 20px;
+        }
+
+        .exam-paper {
+            background: white;
+            width: 210mm;
+            height: 297mm;
+            position: relative;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            overflow: hidden;
+            background-clip: content-box;
+        }
+
+        /* Fixed 1.5cm Frame */
+        .fixed-answer-frame {
+            position: absolute;
+            top: 15mm;    
+            left: 15mm;
+            right: 15mm;
+            bottom: 15mm;
+            border: 1.5pt solid #000; 
+            padding: 12pt;
+            box-sizing: border-box;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            font-size: 11pt;
+            line-height: 1.6;
+            z-index: 5;
+        }
+
+        /* Border text decorations */
+        .side-text {
+            position: absolute;
+            font-size: 8pt;
+            color: #000;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            white-space: nowrap;
+        }
+        
+        .side-left { 
+            left: 5mm; 
+            top: 50%; 
+            transform: translateY(-50%) rotate(180deg); 
+        }
+        .side-right { 
+            right: 5mm; 
+            top: 50%; 
+            transform: translateY(-50%); 
+        }
+        .bottom-warning {
+            position: absolute;
+            bottom: 6mm;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 8pt;
+        }
+
+        .markdown-content p { 
+            margin-bottom: 11pt; 
+            font-size: 11pt;
+            text-align: justify;
+        }
+        
+        .markdown-content img {
+            display: block;
+            margin: 12pt auto;
+            max-width: 100%;
+            max-height: 80mm;
+            object-fit: contain;
+        }
+
+        .dotted-line {
+            width: 100%;
+            height: 9mm;
+            border-bottom: 1px dotted #444;
+            margin-bottom: 0;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            .no-print, header, #editor-container { 
+                display: none !important; 
+            }
+            body { 
+                background: white !important; 
+                margin: 0; 
+                padding: 0; 
+                width: 210mm; 
+                height: 297mm;
+            }
+            #paper-container { 
+                transform: none !important; 
+                margin: 0 !important; 
+                padding: 0 !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 210mm;
+                height: 297mm;
+            }
+            .exam-paper { 
+                box-shadow: none !important; 
+                border: none !important; 
+                margin: 0 !important; 
+                width: 210mm; 
+                height: 297mm;
+                page-break-after: always;
+            }
+            .fixed-answer-frame {
+                border: 1pt solid #000 !important;
+            }
+            .dotted-line {
+                border-bottom: 0.5pt dotted #000 !important;
+            }
+        }
+
+        #editor {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-slate-900 text-white p-3 flex justify-between items-center no-print shrink-0 shadow-md z-20">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 p-2 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-none text-white">ExamCraft</h1>
+                <p class="text-[9px] text-slate-400 uppercase tracking-widest mt-1">1.5cm Margin • TNR 11pt</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4 bg-slate-800 px-4 py-1.5 rounded-full">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Zoom</span>
+            <input type="range" id="zoom-slider" min="0.3" max="1.5" step="0.05" value="0.5" class="w-32 accent-indigo-500 cursor-pointer">
+            <span id="zoom-value" class="text-xs font-mono w-10 text-center">50%</span>
+            <button onclick="fitToScreen()" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded transition">Fit Screen</button>
+        </div>
+
+        <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-full text-sm font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Generate PDF
+        </button>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        
+        <div id="editor-container" class="w-full md:w-2/5 flex flex-col border-r bg-white no-print overflow-y-auto shadow-inner">
+            <div class="p-5 space-y-6">
+                <div>
+                    <div class="flex justify-between items-end mb-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Exam Content (Markdown)</label>
+                        <span class="text-[10px] text-slate-400 italic">Auto-Rendering Enabled</span>
+                    </div>
+                    <textarea id="editor" 
+                        class="w-full h-[450px] p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50 shadow-inner resize-none leading-relaxed"
+                        placeholder="Type question content here...">乙部：全部試題均須作答。把答案寫在預留的空位內。
+
+1. 現提供下列實驗用品以估算青銅的比熱容 $c_s$：
+   - 一個處於室溫 $T_0$ 下質量為 0.80 kg 的青銅球
+   - 一隻聚苯乙烯杯盛著 0.50 kg 處於室溫 $T_0$ 的水
+   - 一個維持在 80°C 的水槽
+   - 一支溫度計、一根攪棒、一條毛巾
+
+   (a) 試描述實驗的步驟並指出兩個在實驗中須採取的預防措施。寫出可求得 $c_s$ 的等式。
+   已知：水的比熱容 = 4200 J kg⁻¹ °C⁻¹ (6分)
+
+[lines:10]</textarea>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold text-slate-600 uppercase">Image Library</span>
+                        <input type="file" id="image-input" multiple accept="image/*" class="hidden">
+                        <button onclick="document.getElementById('image-input').click()" 
+                                class="text-xs bg-white border border-slate-300 px-2 py-1 rounded shadow-sm hover:bg-slate-100">+ Upload</button>
+                    </div>
+                    <div id="image-previews" class="flex flex-wrap gap-2 min-h-[40px]">
+                        <!-- Thumbs appear here -->
+                    </div>
+                </div>
+
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-[11px] text-indigo-800 leading-relaxed">
+                    <strong>Shortcuts:</strong><br>
+                    • <code class="bg-indigo-100 px-1 rounded">[lines:n]</code> : Insert writing space<br>
+                    • <code class="bg-indigo-100 px-1 rounded">![[img:0]]</code> : Reference uploaded image<br>
+                    • <strong>Markdown</strong> is fully supported for formatting.
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Area -->
+        <div class="flex-1 bg-slate-200 overflow-auto p-10 flex flex-col items-center">
+            <div id="paper-container">
+                <div id="preview-paper" class="exam-paper">
+                    <div class="side-text side-left">寫於境界以外的答案，將不予評閱。</div>
+                    <div class="side-text side-right">寫於境界以外的答案，將不予評閱。</div>
+                    <div class="bottom-warning">寫於境界以外的答案，將不予評閱。</div>
+                    
+                    <div class="fixed-answer-frame">
+                        <div id="render-area" class="markdown-content"></div>
+                        
+                        <div class="mt-auto pt-3 flex justify-between items-end text-[9pt] text-black border-t border-slate-200">
+                            <div class="font-mono">2024-DSE-PHY 1B-8</div>
+                            <div class="font-bold text-base">26</div>
+                            <div class="italic text-slate-400">ExamCraft-V2</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const renderArea = document.getElementById('render-area');
+        const imageInput = document.getElementById('image-input');
+        const imagePreviews = document.getElementById('image-previews');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomValue = document.getElementById('zoom-value');
+        const paperContainer = document.getElementById('paper-container');
+        
+        let assets = [];
+
+        function updatePreview() {
+            let content = editor.value;
+
+            // Handle Dotted Lines tag
+            content = content.replace(/\[lines:(\d+)\]/g, (match, count) => {
+                let linesHtml = '<div class="mt-2">';
+                for (let i = 0; i < parseInt(count); i++) {
+                    linesHtml += '<div class="dotted-line"></div>';
+                }
+                linesHtml += '</div>';
+                return linesHtml;
+            });
+
+            // Handle Custom Image References
+            content = content.replace(/!\[\[img:(\d+)\]\]/g, (match, index) => {
+                const imgData = assets[parseInt(index)];
+                if (imgData) return `<img src="${imgData}" />`;
+                return `<div class="bg-slate-100 p-8 border border-dashed text-center text-slate-400 my-2 text-xs">Image #${index} not found</div>`;
+            });
+
+            renderArea.innerHTML = marked.parse(content);
+        }
+
+        function handleImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                assets.push(e.target.result);
+                renderImageThumbs();
+                updatePreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderImageThumbs() {
+            imagePreviews.innerHTML = '';
+            assets.forEach((src, idx) => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.className = 'w-10 h-10 object-cover rounded border border-slate-300 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all';
+                img.title = `Click to insert reference ![[img:${idx}]]`;
+                img.onclick = () => insertAtCursor(`\n![[img:${idx}]]\n`);
+                imagePreviews.appendChild(img);
+            });
+        }
+
+        function insertAtCursor(text) {
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            editor.value = editor.value.substring(0, start) + text + editor.value.substring(end);
+            updatePreview();
+        }
+
+        zoomSlider.addEventListener('input', (e) => {
+            const scale = e.target.value;
+            applyScale(scale);
+        });
+
+        function applyScale(scale) {
+            paperContainer.style.transform = `scale(${scale})`;
+            zoomValue.textContent = Math.round(scale * 100) + '%';
+            zoomSlider.value = scale;
+        }
+
+        function fitToScreen() {
+            const mainEl = document.querySelector('main');
+            const containerHeight = mainEl.clientHeight - 80;
+            const paperHeight = 297 * 3.78; 
+            const scale = Math.min(1, (containerHeight / paperHeight)).toFixed(2);
+            applyScale(scale);
+        }
+
+        editor.addEventListener('input', updatePreview);
+        imageInput.addEventListener('change', (e) => Array.from(e.target.files).forEach(handleImage));
+        
+        window.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    handleImage(items[i].getAsFile());
+                }
+            }
+        });
+
+        window.onload = () => {
+            updatePreview();
+            setTimeout(fitToScreen, 200);
+        };
+    </script>
+</body>
+</html>
