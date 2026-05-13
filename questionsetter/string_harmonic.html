@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弦線駐波擬題模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+        body { font-family: 'Inter', -apple-system, sans-serif; }
+        .canvas-container { background-color: #f8fafc; border: 1px solid #e2e8f0; }
+        .dashed-pattern { fill: url(#diagonalHatch); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-5xl mx-auto p-4 md:p-8">
+        <!-- 標題區 -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">弦線駐波擬題模擬器</h1>
+            <p class="text-gray-600 mt-2">根據 image_2c31c0.png 的原型設計，自由調整參數以生成不同版本的物理考題圖案。</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <aside class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+                <h2 class="text-xl font-semibold mb-6 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    參數設置
+                </h2>
+
+                <div class="space-y-6">
+                    <!-- 諧波次數 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">諧波次數 (n = <span id="n-val">2</span>)</label>
+                        <input type="range" id="harmonic" min="1" max="8" step="1" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>基頻</span><span>高階諧音</span></div>
+                    </div>
+
+                    <!-- 橋碼位置 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">橋碼 Y 位置</label>
+                        <input type="range" id="bridgeY" min="300" max="750" step="10" value="700" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+
+                    <!-- 振幅 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">波幅 (Amplitude)</label>
+                        <input type="range" id="amplitude" min="5" max="50" step="1" value="30" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+
+                    <hr>
+
+                    <!-- 文字標籤 -->
+                    <div class="space-y-3">
+                        <label class="block text-sm font-medium text-gray-700">標籤編輯</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="labelX" value="X" placeholder="左點" class="w-1/2 p-2 border rounded-md text-sm">
+                            <input type="text" id="labelY" value="Y" placeholder="右點" class="w-1/2 p-2 border rounded-md text-sm">
+                        </div>
+                        <input type="text" id="labelW" value="重量" placeholder="重物標籤" class="w-full p-2 border rounded-md text-sm">
+                    </div>
+
+                    <!-- 顯示開關 -->
+                    <div class="space-y-2 pt-2">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="showDashed" checked class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <span class="ml-3 text-sm font-medium text-gray-700">顯示虛線 (駐波波形)</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="isAnimated" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <span class="ml-3 text-sm font-medium text-gray-700">動態模擬</span>
+                        </label>
+                    </div>
+
+                    <!-- 下載按鈕 -->
+                    <button id="downloadBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        導出圖片 (.png)
+                    </button>
+                </div>
+            </aside>
+
+            <main class="lg:col-span-2 space-y-4">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 canvas-container overflow-hidden flex items-center justify-center min-h-[400px]">
+                    <svg id="svg-canvas" width="850" height="400" viewBox="0 0 850 400" class="max-w-full h-auto drop-shadow-md">
+                        <defs>
+                            <pattern id="diagonalHatch" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                                <line x1="0" y1="0" x2="0" y2="10" style="stroke:black; stroke-width:4" />
+                            </pattern>
+                        </defs>
+                        
+                        <!-- 背景底盤 -->
+                        <rect x="50" y="250" width="700" height="40" fill="white" stroke="black" stroke-width="2" />
+                        
+                        <!-- 滑輪支架 -->
+                        <path d="M750 250 L800 210 L800 250 Z" fill="white" stroke="black" stroke-width="2" />
+                        <circle cx="800" cy="210" r="12" fill="white" stroke="black" stroke-width="2" />
+
+                        <!-- 橋碼 X -->
+                        <path id="bridgeX-tri" d="M90 250 L110 210 L130 250 Z" fill="#d1d5db" stroke="black" stroke-width="1.5" />
+                        <text id="txt-labelX" x="110" y="200" text-anchor="middle" font-style="italic" font-size="20">X</text>
+
+                        <!-- 橋碼 Y -->
+                        <path id="bridgeY-tri" d="M680 250 L700 210 L720 250 Z" fill="#d1d5db" stroke="black" stroke-width="1.5" />
+                        <text id="txt-labelY" x="700" y="200" text-anchor="middle" font-style="italic" font-size="20">Y</text>
+
+                        <!-- 弦線與波形 -->
+                        <!-- 靜態弦 (固定端到 X) -->
+                        <line x1="50" y1="250" x2="110" y2="210" stroke="black" stroke-width="1.5" />
+                        
+                        <!-- 駐波部分 -->
+                        <path id="wave-path-main" d="" fill="none" stroke="black" stroke-width="2" />
+                        <path id="wave-path-dashed" d="" fill="none" stroke="black" stroke-width="1.5" stroke-dasharray="5,5" />
+
+                        <!-- 滑輪後的弦 -->
+                        <path id="string-to-pulley" d="M700 210 L800 210 L800 280" fill="none" stroke="black" stroke-width="1.5" />
+
+                        <!-- 重量 -->
+                        <g id="weight-group">
+                            <rect x="785" y="280" width="30" height="50" class="dashed-pattern" stroke="black" stroke-width="2" />
+                            <text id="txt-labelW" x="825" y="310" font-size="18">重量</text>
+                        </g>
+                    </svg>
+                </div>
+                
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3 items-start">
+                    <svg class="w-6 h-6 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div class="text-sm text-blue-800">
+                        <strong>擬題建議：</strong><br>
+                        1. 調整諧波次數 $n$ 可以讓學生計算頻率或波速。<br>
+                        2. 移動橋碼 $Y$ 改變弦長 $L$，探討 $f = \frac{n}{2L}\sqrt{\frac{T}{\mu}}$ 的關係。<br>
+                        3. 導出圖片後可直接插入考試試卷。
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 用於導出的隱藏 Canvas -->
+    <canvas id="export-canvas" style="display:none;"></canvas>
+
+    <script>
+        const svg = document.getElementById('svg-canvas');
+        const hRange = document.getElementById('harmonic');
+        const bYRange = document.getElementById('bridgeY');
+        const ampRange = document.getElementById('amplitude');
+        const nVal = document.getElementById('n-val');
+        
+        const labelXInput = document.getElementById('labelX');
+        const labelYInput = document.getElementById('labelY');
+        const labelWInput = document.getElementById('labelW');
+        
+        const showDashedCheck = document.getElementById('showDashed');
+        const isAnimatedCheck = document.getElementById('isAnimated');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        const xPos = 110; // 固定橋碼 X 座標
+        const bridgeHeight = 210;
+        let time = 0;
+
+        function updateDiagram() {
+            const n = parseInt(hRange.value);
+            const yPos = parseInt(bYRange.value);
+            const amp = parseInt(ampRange.value);
+            const isAnimated = isAnimatedCheck.checked;
+            
+            nVal.textContent = n;
+
+            // 更新橋碼 Y
+            const bridgeYTri = document.getElementById('bridgeY-tri');
+            const txtLabelY = document.getElementById('txt-labelY');
+            bridgeYTri.setAttribute('d', `M${yPos-20} 250 L${yPos} 210 L${yPos+20} 250 Z`);
+            txtLabelY.setAttribute('x', yPos);
+
+            // 更新標籤文字
+            document.getElementById('txt-labelX').textContent = labelXInput.value;
+            txtLabelY.textContent = labelYInput.value;
+            document.getElementById('txt-labelW').textContent = labelWInput.value;
+
+            // 更新弦線路徑 (X 到 Y 之間)
+            const length = yPos - xPos;
+            const mainPath = document.getElementById('wave-path-main');
+            const dashPath = document.getElementById('wave-path-dashed');
+            
+            let d1 = `M ${xPos} ${bridgeHeight}`;
+            let d2 = `M ${xPos} ${bridgeHeight}`;
+
+            const points = 100;
+            const currentAmp = isAnimated ? amp * Math.sin(time) : amp;
+
+            for (let i = 0; i <= points; i++) {
+                const px = xPos + (i / points) * length;
+                const py1 = bridgeHeight + currentAmp * Math.sin((Math.PI * n * i) / points);
+                const py2 = bridgeHeight - currentAmp * Math.sin((Math.PI * n * i) / points);
+                d1 += ` L ${px} ${py1}`;
+                d2 += ` L ${px} ${py2}`;
+            }
+
+            mainPath.setAttribute('d', d1);
+            dashPath.setAttribute('d', d2);
+            dashPath.style.display = showDashedCheck.checked ? 'block' : 'none';
+
+            // 更新滑輪弦
+            const stringToPulley = document.getElementById('string-to-pulley');
+            stringToPulley.setAttribute('d', `M${yPos} ${bridgeHeight} L800 210 L800 280`);
+
+            if (isAnimated) {
+                time += 0.15;
+                requestAnimationFrame(updateDiagram);
+            }
+        }
+
+        [hRange, bYRange, ampRange, labelXInput, labelYInput, labelWInput, showDashedCheck].forEach(el => {
+            el.addEventListener('input', () => {
+                if (!isAnimatedCheck.checked) updateDiagram();
+            });
+        });
+
+        isAnimatedCheck.addEventListener('change', () => {
+            if (isAnimatedCheck.checked) updateDiagram();
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const canvas = document.getElementById('export-canvas');
+            const ctx = canvas.getContext('2d');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const img = new Image();
+            
+            // 增加解析度以獲取高質量圖片
+            const scale = 2;
+            canvas.width = svg.getAttribute('width') * scale;
+            canvas.height = svg.getAttribute('height') * scale;
+            
+            const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function() {
+                ctx.fillStyle = "white";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.scale(scale, scale);
+                ctx.drawImage(img, 0, 0);
+                
+                const pngUrl = canvas.toDataURL("image/png");
+                const downloadLink = document.createElement("a");
+                downloadLink.href = pngUrl;
+                downloadLink.download = `standing_wave_n${hRange.value}.png`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        });
+
+        // 初始運行
+        window.onload = updateDiagram;
+    </script>
+</body>
+</html>
