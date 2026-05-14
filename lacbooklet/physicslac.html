@@ -13,7 +13,6 @@
             --ios-blue: #007aff;
         }
         body {
-            /* 設置鑽石背景圖 */
             background-image: url('https://phyuaaphysics.github.io/simulatorbank/lacbooklet/diamond.jpg');
             background-size: cover;
             background-position: center;
@@ -22,9 +21,8 @@
             color: #1c1c1e;
             letter-spacing: -0.01em;
             overflow-x: hidden;
-            min-h-screen;
+            min-height: 100vh;
         }
-        /* 增加遮罩讓背景圖不會過於刺眼，保持文字可讀性 */
         body::before {
             content: "";
             position: fixed;
@@ -73,8 +71,6 @@
             transform: scale(0.92);
             opacity: 0.7;
         }
-
-        /* Floating Popover Styles */
         #floatingPopover {
             position: absolute;
             z-index: 100;
@@ -84,7 +80,7 @@
             transform: translateY(10px) scale(0.95);
             transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             filter: drop-shadow(0 15px 35px rgba(0,0,0,0.2));
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
         }
         #floatingPopover.active {
             pointer-events: auto;
@@ -100,7 +96,7 @@
             height: 0;
             border-left: 8px solid transparent;
             border-right: 8px solid transparent;
-            border-top: 8px solid rgba(255, 255, 255, 0.9);
+            border-top: 8px solid rgba(255, 255, 255, 0.95);
         }
     </style>
 </head>
@@ -140,7 +136,80 @@
     </div>
 
     <script>
-        const apiKey = "";
+        const dictionaryData = {
+            "Refraction": { en: "The bending of light as it passes from one medium to another.", zh: "折射：光從一種物質進入另一種物質時產生的偏折現象。" },
+            "Light": { en: "Electromagnetic radiation that can be detected by the human eye.", zh: "光：人類眼睛可以察覺的電磁輻射。" },
+            "Medium": { en: "A substance through which light or sound waves travel.", zh: "介質：光或聲波在其傳播的物質。" },
+            "Phenomenon": { en: "A fact or situation that is observed to exist or happen.", zh: "現象：觀察到的事實或發生的情況。" },
+            "Optical": { en: "Relating to sight, especially in relation to the physical action of light.", zh: "光學的：與視力有關，特別是與光的物理作用有關。" },
+            "Lenses": { en: "Pieces of glass or other transparent substance with curved sides.", zh: "鏡片：具有彎曲面的玻璃或其他透明物質。" },
+            "Fiber": { en: "A thin thread or strand of material.", zh: "纖維：物質的細絲或細股。" },
+            "Reflection": { en: "The throwing back by a body or surface of light, heat, or sound.", zh: "反射：物體或表面將光、熱或聲音彈回。" },
+            "Critical": { en: "Relating to a point of transition from one state to another.", zh: "臨界的：與一種狀態轉變到另一種狀態的轉折點有關。" },
+            "Diamonds": { en: "A precious stone consisting of a clear crystalline form of pure carbon.", zh: "鑽石：由純碳組成的透明結晶狀寶石。" },
+            "Internal": { en: "Situated on the inside.", zh: "內部的：位於裡面的。" },
+            "Speed": { en: "The rate at which someone or something moves.", zh: "速度：某人或某物移動的速率。" },
+            "Direction": { en: "The path that something takes.", zh: "方向：某物採取的路徑。" },
+            "Core": { en: "The central or most important part of something.", zh: "核心：某物最中心或最重要的部分。" },
+            "Photography": { en: "The art or practice of taking and processing photographs.", zh: "攝影：拍攝和處理照片的藝術或實踐。" },
+            "Bounces": { en: "Move quickly up or away from a surface after hitting it.", zh: "彈回：在撞擊表面後迅速移開。" },
+            "Angles": { en: "The space between two intersecting lines or surfaces.", zh: "角度：兩條相交線或面之間的空間。" },
+            "Smartphones": { en: "A mobile phone that performs many computer functions.", zh: "智慧型手機：執行許多電腦功能的行動電話。" },
+            "Sparkle": { en: "Shine brightly with flashes of light.", zh: "閃爍：隨著光線閃爍而閃閃發光。" },
+            "Signal": { en: "A gesture, action, or sound used to convey information.", zh: "訊號：用於傳達訊息的動作或聲音。" },
+            "Changes": { en: "Make or become different.", zh: "改變：使變得不同。" },
+            "Slightly": { en: "To a small degree; not considerably.", zh: "稍微地：程度較小地。" },
+            "Called": { en: "To give a name to someone or something.", zh: "稱為：給某人或某物取名。" },
+            "Camera": { en: "A device for recording visual images.", zh: "照相機：記錄影像的設備。" },
+            "Refracting": { en: "The action of light bending.", zh: "折射中：光線正在發生偏折的動作。" },
+            "Rays": { en: "Each of the lines in which light and heat may seem to stream.", zh: "射線：光或熱流動的線條。" },
+            "Bend": { en: "Shape or force into a curve or angle.", zh: "彎曲：使其變成曲線或角度。" },
+            "Focus": { en: "The center of interest or activity; concentrate.", zh: "聚焦：興趣或活動的中心；集中。" },
+            "Form": { en: "Bring together parts to create something.", zh: "形成：將部分組合在一起創造某物。" },
+            "Clear": { en: "Easy to perceive, understand, or interpret.", zh: "清晰的：容易察覺、理解或詮釋的。" },
+            "Images": { en: "A representation of the external form of a person or thing.", zh: "影像：人或事物的外部形式呈現。" },
+            "Sensor": { en: "A device that detects or measures a physical property.", zh: "感測器：探測或測量物理特性的設備。" },
+            "Unique": { en: "Being the only one of its kind.", zh: "獨特的：同類中唯一的。" },
+            "Materials": { en: "The matter from which a thing is or can be made.", zh: "材料：構成某物的物質。" },
+            "Control": { en: "The power to influence or direct people's behavior.", zh: "控制：影響或引導行為的力量。" },
+            "Passes": { en: "Move or cause to move in a specified direction.", zh: "通過：向特定方向移動。" },
+            "Sharp": { en: "Having a fine edge or point; clear and detailed.", zh: "銳利的/清晰的：邊緣鮮明；清楚且細節豐富。" },
+            "Modern": { en: "Relating to the present or recent times.", zh: "現代的：與現在或近期有關的。" },
+            "Digital": { en: "Involving or relating to the use of computer technology.", zh: "數位的：涉及或關於電腦科技的使用。" },
+            "Wondered": { en: "Desire to know something; feel curious.", zh: "想知道：渴望知道某事；感到好奇。" },
+            "Thin": { en: "Having opposite surfaces or sides close together.", zh: "薄的/細的：相對的面或側邊距離很近。" },
+            "Glass": { en: "A hard, brittle substance, typically transparent.", zh: "玻璃：一種硬且脆的物質，通常是透明的。" },
+            "Strands": { en: "A single thin length of something.", zh: "股/絲：某物的單根細長條。" },
+            "Cables": { en: "An insulated wire or bundle of wires.", zh: "電纜：絕緣電線或電線束。" },
+            "Carry": { en: "Support and move someone or something from one place to another.", zh: "攜帶/傳輸：支持並將某人或某物從一處移至另一處。" },
+            "Bright": { en: "Giving out or reflecting a lot of light.", zh: "明亮的：發出或反射大量光線。" },
+            "Neat": { en: "Done with characteristically high skill; clever.", zh: "巧妙的：做得非常有技巧；聰明。" },
+            "Trick": { en: "A cunning or skillful act or scheme intended to deceive or amuse.", zh: "技巧/把戲：旨在欺騙或娛樂的巧妙行為。" },
+            "Hits": { en: "Come into contact with quickly and forcefully.", zh: "碰撞：迅速且有力地接觸。" },
+            "Boundary": { en: "A line that marks the limits of an area.", zh: "邊界：標記區域限制的線。" },
+            "Usually": { en: "Under normal conditions; generally.", zh: "通常：在正常情況下；一般地。" },
+            "Steep": { en: "Rising or falling at a sharp angle.", zh: "陡峭的：以劇烈角度上升或下降。" },
+            "Completely": { en: "Totally; utterly.", zh: "完全地：徹底地。" },
+            "Sneaky": { en: "Furtive; sly.", zh: "鬼鬼祟祟的：狡猾的。" },
+            "Total": { en: "Comprising the whole number or amount.", zh: "總共的/全：構成全數或全量。" },
+            "Miles": { en: "A unit of linear measure equal to 1,760 yards.", zh: "英哩：長度單位。" },
+            "Dimming": { en: "Making or becoming less bright.", zh: "變暗：使亮度降低。" },
+            "Trapped": { en: "Caught in a trap.", zh: "被困住：掉進陷阱中。" },
+            "Inside": { en: "The inner side or surface of something.", zh: "在裡面：某物的內側或表面。" },
+            "Shiny": { en: "Reflecting light, typically because very clean or polished.", zh: "閃亮的：反射光線，通常是因為很乾淨或經過打磨。" },
+            "Facets": { en: "One side of something many-sided, especially of a cut gem.", zh: "小平面：多面體的一面，特別是切磨過的寶石。" },
+            "Jewelry": { en: "Personal ornaments, such as necklaces, rings, or bracelets.", zh: "珠寶：個人飾品，如項鍊、戒指或手鍊。" },
+            "Manipulate": { en: "Handle or control in a skillful manner.", zh: "操控：以巧妙的方式處理或控制。" },
+            "Special": { en: "Better, greater, or otherwise different from what is usual.", zh: "特別的：比平常更好、更大或不同。" },
+            "Photons": { en: "A particle representing a quantum of light.", zh: "光子：代表光量子的粒子。" },
+            "Escaping": { en: "Breaking free from confinement or control.", zh: "逃脫：從禁錮或控制中解脫。" },
+            "Physics": { en: "The branch of science concerned with the nature and properties of matter and energy.", zh: "物理學：研究物質與能量性質的科學分支。" },
+            "Creates": { en: "Bring something into existence.", zh: "創造：使某物存在。" },
+            "Magical": { en: "Relating to, using, or resembling magic.", zh: "神奇的：關於、使用或類似魔法的。" },
+            "Glowing": { en: "Expressing great pride or satisfaction; giving out steady light.", zh: "發光的：發出穩定的光。" },
+            "Effects": { en: "A change which is a result or consequence of an action.", zh: "效果/影響：行動產生的結果。" }
+        };
+
         const sections = [
             {
                 text: "When light moves from one medium to another, it changes speed and direction slightly, this phenomenon is called refraction.",
@@ -166,11 +235,36 @@
         const container = document.getElementById('passageContainer');
         const popover = document.getElementById('floatingPopover');
 
+        // 單字搜尋輔助函數
+        function findInDictionary(word) {
+            const candidates = [
+                word, 
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(), 
+                word.toLowerCase(), 
+                word.endsWith('s') ? word.slice(0, -1) : null,
+                word.endsWith('es') ? word.slice(0, -2) : null,
+                word.endsWith('ed') ? word.slice(0, -2) : null,
+                word.endsWith('ing') ? word.slice(0, -3) : null,
+            ].filter(Boolean);
+
+            for (let c of candidates) {
+                const capC = c.charAt(0).toUpperCase() + c.slice(1).toLowerCase();
+                if (dictionaryData[c] || dictionaryData[capC]) return true;
+            }
+            return false;
+        }
+
         function initApp() {
             container.innerHTML = sections.map((section, idx) => {
                 const words = section.text.split(/\s+/).map(word => {
-                    const cleanWord = word.replace(/[\[\]\(\)\,\.\!\?]/g, '').replace(/'/g, "\\'");
-                    return `<span class="word-span" onclick="handleWordClick(event, this, '${cleanWord}')">${word}</span>`;
+                    const cleanWord = word.replace(/[\[\]\(\)\,\.\!\?]/g, '');
+                    // 檢查單字是否在字典中
+                    if (findInDictionary(cleanWord)) {
+                        return `<span class="word-span" onclick="handleWordClick(event, this, '${cleanWord}')">${word}</span>`;
+                    } else {
+                        // 不在字典中的單字直接回傳純文字
+                        return word;
+                    }
                 }).join(' ');
 
                 return `
@@ -197,7 +291,7 @@
             }).join('');
         }
 
-        async function handleWordClick(event, el, word) {
+        function handleWordClick(event, el, word) {
             event.stopPropagation();
             
             document.querySelectorAll('.word-span').forEach(w => w.classList.remove('highlight'));
@@ -221,32 +315,31 @@
             popover.style.top = `${targetTop}px`;
 
             document.getElementById('popoverWord').innerText = word;
-            document.getElementById('popoverEn').innerText = "Consulting lexicon...";
-            document.getElementById('popoverZh').innerText = "正在檢索詞典...";
-            popover.classList.add('active');
 
-            try {
-                const prompt = `Define the word "${word}" elegantly for a student. 
-                Provide the response in JSON format with two keys: "en" (English definition) and "zh" (Traditional Chinese definition). 
-                Keep both definitions concise but high-quality.`;
+            const getDefinition = (w) => {
+                const candidates = [
+                    w, 
+                    w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(), 
+                    w.toLowerCase(), 
+                    w.endsWith('s') ? w.slice(0, -1) : null,
+                    w.endsWith('es') ? w.slice(0, -2) : null,
+                    w.endsWith('ed') ? w.slice(0, -2) : null,
+                    w.endsWith('ing') ? w.slice(0, -3) : null,
+                ].filter(Boolean);
 
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { responseMimeType: "application/json" }
-                    })
-                });
-                
-                const data = await res.json();
-                const result = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
-                
-                document.getElementById('popoverEn').innerText = result.en || "Definition unavailable.";
-                document.getElementById('popoverZh').innerText = result.zh || "暫無定義。";
-            } catch (err) {
-                document.getElementById('popoverEn').innerText = "An error occurred.";
-                document.getElementById('popoverZh').innerText = "發生錯誤。";
+                for (let c of candidates) {
+                    const capC = c.charAt(0).toUpperCase() + c.slice(1).toLowerCase();
+                    if (dictionaryData[c]) return dictionaryData[c];
+                    if (dictionaryData[capC]) return dictionaryData[capC];
+                }
+                return null;
+            };
+
+            const definition = getDefinition(word);
+            if (definition) {
+                document.getElementById('popoverEn').innerText = definition.en;
+                document.getElementById('popoverZh').innerText = definition.zh;
+                popover.classList.add('active');
             }
         }
 
