@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics of Refraction Reader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .word-span {
+            cursor: pointer;
+            transition: background-color 0.1s, color 0.1s;
+            border-radius: 4px;
+            padding: 0 2px;
+            display: inline-block;
+        }
+        .word-span:hover {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+        .highlight {
+            background-color: #fef08a !important;
+            color: #854d0e !important;
+        }
+        .passage-section {
+            transition: all 0.3s ease;
+        }
+        .passage-section:hover {
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
+
+    <div class="max-w-4xl mx-auto p-4 md:p-8">
+        <header class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 flex flex-wrap justify-between items-center gap-4">
+            <h1 class="text-3xl font-bold text-slate-900">Physics of Refraction</h1>
+            
+            <div class="flex items-center gap-6">
+                <div class="flex flex-col">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-1">Voice Settings / 語音設定</label>
+                    <div class="flex items-center gap-2">
+                        <select id="voiceSelect" class="bg-slate-100 border-none rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="Kore">Voice: Kore</option>
+                            <option value="Zephyr">Voice: Zephyr</option>
+                            <option value="Charon">Voice: Charon</option>
+                        </select>
+                        <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                            <input type="range" id="speedRange" min="0.5" max="2" step="0.1" value="1" class="w-16 h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                            <span id="speedVal" class="text-xs font-mono w-8 text-slate-600">1.0x</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 flex flex-col gap-4" id="passageContainer">
+                <!-- Sections injected by JS -->
+            </div>
+
+            <aside class="lg:col-span-1">
+                <div id="dictionaryCard" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-8 min-h-[150px]">
+                    <h2 class="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-4">Word Meaning / 單字釋義</h2>
+                    <div id="defPlaceholder" class="text-slate-400 italic text-sm">點擊文章中的任何單字以查看英文和繁體中文釋義。</div>
+                    <div id="defContent" class="hidden">
+                        <h3 id="selectedWord" class="text-xl font-bold text-slate-900 mb-2"></h3>
+                        <div class="space-y-4">
+                            <div>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase block mb-1">English</span>
+                                <p id="wordMeaning" class="text-slate-600 text-sm leading-relaxed"></p>
+                            </div>
+                            <div class="pt-3 border-t border-slate-100">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase block mb-1">繁體中文</span>
+                                <p id="wordMeaningZh" class="text-slate-700 text-sm leading-relaxed font-medium"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        const apiKey = "";
+        const sections = [
+            "When light moves from one medium to another, it changes speed and direction slightly, this phenomenon is called refraction.",
+            "Camera lenses and other optical lenses work by refracting light rays. They bend and focus light to form clear images on the camera sensor or film. The unique curvatures and materials of each lens element control how much light refracts as it passes through, allowing sharp photos and videos. Refraction is a core technology behind modern digital and smartphone photography.",
+            "Have you ever wondered how those thin glass strands called fiber optic cables can carry bright lights through them? They use a neat trick with light called total internal reflection.",
+            "When light hits the boundary between two different materials, it usually goes through. But if it hits at a steep enough angle, called the critical angle, the light bounces back completely. It doesn't go through because the second material won't let it in. Pretty sneaky, right? This total reflection lets the fiber optic cables carry light signals for miles without much dimming. It's also why diamonds sparkle so brightly - the light gets trapped inside. When you see fiber optics in phones or the shiny facets on jewelry, you'll know why they can manipulate light so well. The special reflection makes photons zip around without escaping. Pretty cool how some clever physics creates such magical glowing effects!"
+        ];
+
+        let currentAudio = null;
+        let activePlayingId = null;
+
+        const container = document.getElementById('passageContainer');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const speedRange = document.getElementById('speedRange');
+        const speedVal = document.getElementById('speedVal');
+
+        function initApp() {
+            container.innerHTML = sections.map((text, idx) => {
+                const words = text.split(/\s+/).map(word => {
+                    const cleanWord = word.replace(/[\[\]\(\)\,\.\!\?]/g, '').replace(/'/g, "\\'");
+                    return `<span class="word-span" onclick="defineWord(this, '${cleanWord}')">${word}</span>`;
+                }).join(' ');
+
+                return `
+                <div class="passage-section bg-white border border-slate-200 rounded-xl p-5 relative group">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-xs font-bold text-slate-300">SECTION ${idx + 1}</span>
+                        <div class="flex gap-2">
+                            <button id="play-${idx}" onclick="playSection(${idx})" class="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded-lg transition-colors flex items-center gap-1 text-sm font-semibold">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                播放
+                            </button>
+                            <button id="stop-${idx}" onclick="stopAudio()" class="hidden text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors flex items-center gap-1 text-sm font-semibold">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect></svg>
+                                停止
+                            </button>
+                            <button id="dl-${idx}" onclick="downloadVoice(${idx})" class="text-slate-500 hover:bg-slate-50 p-1.5 rounded-lg transition-colors flex items-center gap-1 text-sm font-semibold" title="下載音訊">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-slate-700 leading-relaxed text-lg select-none">${words}</div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        async function defineWord(el, word) {
+            document.querySelectorAll('.word-span').forEach(w => w.classList.remove('highlight'));
+            el.classList.add('highlight');
+            document.getElementById('defPlaceholder').classList.add('hidden');
+            document.getElementById('defContent').classList.remove('hidden');
+            document.getElementById('selectedWord').innerText = word;
+            document.getElementById('wordMeaning').innerText = "Loading...";
+            document.getElementById('wordMeaningZh').innerText = "載入中...";
+
+            try {
+                // 明確要求繁體中文 (Traditional Chinese)
+                const prompt = `Define the word "${word}" briefly for a middle school student. 
+                Provide the response in JSON format with two keys: "en" (English definition) and "zh" (Traditional Chinese definition). 
+                Keep both definitions very concise (one short sentence each).`;
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+                
+                const data = await res.json();
+                const result = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
+                
+                document.getElementById('wordMeaning').innerText = result.en || "Definition not found.";
+                document.getElementById('wordMeaningZh').innerText = result.zh || "未找到定義。";
+            } catch (err) {
+                document.getElementById('wordMeaning').innerText = "Unable to fetch definition.";
+                document.getElementById('wordMeaningZh').innerText = "無法獲取定義。";
+            }
+        }
+
+        function stopAudio() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            if (activePlayingId !== null) {
+                document.getElementById(`play-${activePlayingId}`).classList.remove('hidden');
+                document.getElementById(`stop-${activePlayingId}`).classList.add('hidden');
+                activePlayingId = null;
+            }
+        }
+
+        async function generateAudioBlob(idx) {
+            const text = sections[idx];
+            const speed = speedRange.value;
+            const voice = voiceSelect.value;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: `Read clearly at ${speed}x speed: ${text}` }] }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+                    }
+                })
+            });
+
+            const result = await response.json();
+            const audioBase64 = result.candidates[0].content.parts[0].inlineData.data;
+            const sampleRate = 24000;
+            const header = createWavHeader(atob(audioBase64).length, sampleRate);
+            return new Blob([header, Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
+        }
+
+        async function playSection(idx) {
+            stopAudio();
+            const btn = document.getElementById(`play-${idx}`);
+            const stopBtn = document.getElementById(`stop-${idx}`);
+            const originalHtml = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-pulse">...</span>`;
+
+            try {
+                const blob = await generateAudioBlob(idx);
+                currentAudio = new Audio(URL.createObjectURL(blob));
+                activePlayingId = idx;
+
+                currentAudio.onplay = () => {
+                    btn.classList.add('hidden');
+                    stopBtn.classList.remove('hidden');
+                };
+                currentAudio.onended = stopAudio;
+                currentAudio.play();
+            } catch (e) {
+                console.error(e);
+                btn.innerHTML = `Error`;
+            } finally {
+                btn.disabled = false;
+                if (activePlayingId !== idx) btn.innerHTML = originalHtml;
+            }
+        }
+
+        async function downloadVoice(idx) {
+            const dlBtn = document.getElementById(`dl-${idx}`);
+            const originalColor = dlBtn.style.color;
+            dlBtn.disabled = true;
+            dlBtn.style.color = "#6366f1";
+
+            try {
+                const blob = await generateAudioBlob(idx);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `physics_section_${idx + 1}.wav`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
+            } catch (e) {
+                console.error("Download failed", e);
+            } finally {
+                dlBtn.disabled = false;
+                dlBtn.style.color = originalColor;
+            }
+        }
+
+        function createWavHeader(dataLength, sampleRate) {
+            const header = new ArrayBuffer(44);
+            const view = new DataView(header);
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+            };
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + dataLength, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, dataLength, true);
+            return header;
+        }
+
+        speedRange.addEventListener('input', (e) => {
+            speedVal.innerText = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
