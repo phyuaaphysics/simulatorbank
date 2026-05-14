@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理圖像製作工具 (v-t圖) Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap');
+        
+        :root {
+            --primary: #2563eb;
+            --bg-canvas: #ffffff;
+        }
+
+        body { 
+            font-family: 'Inter', "Times New Roman", sans-serif; 
+            overscroll-behavior: none;
+        }
+
+        canvas { 
+            touch-action: none; 
+            cursor: crosshair; 
+            background-color: var(--bg-canvas);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .control-panel::-webkit-scrollbar {
+            width: 5px;
+        }
+        .control-panel::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .mono { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<div class="h-screen flex flex-col md:flex-row overflow-hidden">
+    <aside class="w-full md:w-80 bg-white border-r border-slate-200 flex flex-col control-panel">
+        <div class="p-6 border-b border-slate-100">
+            <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+                v-t 圖像產生器
+            </h1>
+            <p class="text-[11px] text-slate-400 mt-1 uppercase tracking-widest font-semibold">Professional Physics Tool</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-6">
+            <!-- Axis Settings -->
+            <section>
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-tighter mb-4 flex items-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2"></span> 座標軸參數
+                </h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-600">最大速度 Max v</label>
+                        <input type="number" id="maxY" value="12" class="w-full border border-slate-200 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mono">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-600">速度間距 Step v</label>
+                        <input type="number" id="stepY" value="2" class="w-full border border-slate-200 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mono">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-600">最大時間 Max t (s)</label>
+                        <input type="number" id="maxX" value="4" class="w-full border border-slate-200 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mono">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-600">時間間距 Step t</label>
+                        <input type="number" id="stepX" value="1" class="w-full border border-slate-200 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mono">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Aesthetics Settings -->
+            <section>
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-tighter mb-4 flex items-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-2"></span> 視覺風格
+                </h2>
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-[10px] font-bold text-slate-600">標籤字體大小 (px)</label>
+                            <span id="fontSizeVal" class="text-[10px] font-bold text-blue-600 mono">44</span>
+                        </div>
+                        <input type="range" id="fontSize" min="24" max="130" value="44" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    
+                    <div class="flex flex-col gap-2 pt-2">
+                        <label class="flex items-center group cursor-pointer">
+                            <input type="checkbox" id="showPoints" checked class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-xs font-medium text-slate-700 group-hover:text-blue-600 transition-colors">顯示編輯節點</span>
+                        </label>
+                        <label class="flex items-center group cursor-pointer">
+                            <input type="checkbox" id="snapToGrid" checked class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-xs font-medium text-slate-700 group-hover:text-blue-600 transition-colors">自動吸附格點</span>
+                        </label>
+                        <label class="flex items-center group cursor-pointer">
+                            <input type="checkbox" id="showArea" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-xs font-medium text-slate-700 group-hover:text-blue-600 transition-colors">顯示位移面積 (Displacement)</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Actions -->
+            <section class="pt-4 border-t border-slate-100 space-y-3">
+                <button id="addPointBtn" class="w-full py-2 px-4 bg-slate-800 text-white text-xs font-bold rounded-lg hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    新增節點
+                </button>
+                <button id="resetBtn" class="w-full py-2 px-4 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-all">
+                    重設數據
+                </button>
+            </section>
+        </div>
+
+        <div class="p-5 bg-slate-50 border-t border-slate-200">
+            <button id="downloadBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center shadow-lg shadow-blue-200">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                下載 PNG 圖檔
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative flex items-center justify-center p-4 md:p-10 bg-slate-200">
+        <div class="relative w-full h-full flex items-center justify-center">
+            <canvas id="graphCanvas" width="2000" height="1600" class="max-w-full max-h-full"></canvas>
+            
+            <div id="impulseBadge" class="absolute top-4 right-4 bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-xl hidden">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">位移 Displacement (Δx)</div>
+                <div id="impulseValue" class="text-xl font-bold text-indigo-600 mono">0.00 m</div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+const canvas = document.getElementById('graphCanvas');
+const ctx = canvas.getContext('2d');
+const impulseBadge = document.getElementById('impulseBadge');
+const impulseValue = document.getElementById('impulseValue');
+
+let points = [
+    { x: 0, y: 0 },
+    { x: 1, y: 10 },
+    { x: 3, y: 0 }
+];
+
+let config = {
+    maxX: 4,
+    maxY: 12,
+    stepX: 1,
+    stepY: 2,
+    fontSize: 44,
+    padding: { top: 120, right: 120, bottom: 120, left: 180 },
+    snapToGrid: true,
+    showPoints: true,
+    showArea: false
+};
+
+function mapX(val) {
+    const usableWidth = canvas.width - config.padding.left - config.padding.right;
+    return config.padding.left + (val / config.maxX) * usableWidth;
+}
+
+function mapY(val) {
+    const usableHeight = canvas.height - config.padding.top - config.padding.bottom;
+    return canvas.height - config.padding.bottom - (val / config.maxY) * usableHeight;
+}
+
+function unmapX(px) {
+    const usableWidth = canvas.width - config.padding.left - config.padding.right;
+    return ((px - config.padding.left) / usableWidth) * config.maxX;
+}
+
+function unmapY(py) {
+    const usableHeightTotal = canvas.height - config.padding.top - config.padding.bottom;
+    const dy = canvas.height - config.padding.bottom - py;
+    return (dy / usableHeightTotal) * config.maxY;
+}
+
+function render(targetCtx, isExport = false) {
+    const fSize = config.fontSize;
+    const fontName = '"Times New Roman"';
+    
+    // Dynamic padding adjustments to ensure labels don't get cut
+    config.padding.bottom = fSize * 4.5; 
+    config.padding.left = fSize * 6.0;
+    config.padding.top = fSize * 5.0;
+    config.padding.right = fSize * 6.0;
+
+    targetCtx.fillStyle = '#ffffff';
+    targetCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 1. Grid: OBVIOUS Black Dotted Line
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 4; // Bolder dotted lines
+    targetCtx.setLineDash([4, 12]); // Larger dots and gaps for visibility
+    targetCtx.beginPath();
+    for (let y = 0; y <= config.maxY; y += config.stepY) {
+        targetCtx.moveTo(config.padding.left, mapY(y));
+        targetCtx.lineTo(canvas.width - config.padding.right, mapY(y));
+    }
+    for (let x = 0; x <= config.maxX; x += config.stepX) {
+        targetCtx.moveTo(mapX(x), config.padding.top);
+        targetCtx.lineTo(mapX(x), canvas.height - config.padding.bottom);
+    }
+    targetCtx.stroke();
+    targetCtx.setLineDash([]);
+
+    // 2. Area (Displacement)
+    if (config.showArea) {
+        targetCtx.fillStyle = 'rgba(79, 70, 229, 0.15)';
+        targetCtx.beginPath();
+        targetCtx.moveTo(mapX(points[0].x), mapY(0));
+        points.forEach(p => targetCtx.lineTo(mapX(p.x), mapY(p.y)));
+        targetCtx.lineTo(mapX(points[points.length-1].x), mapY(0));
+        targetCtx.closePath();
+        targetCtx.fill();
+        
+        let area = 0;
+        for(let i=0; i < points.length - 1; i++) {
+            area += (points[i].y + points[i+1].y) * (points[i+1].x - points[i].x) / 2;
+        }
+        impulseValue.innerText = `${area.toFixed(2)} m`;
+        impulseBadge.classList.remove('hidden');
+    } else {
+        impulseBadge.classList.add('hidden');
+    }
+
+    // 3. Main Axes
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 6;
+    targetCtx.lineCap = 'square';
+    targetCtx.beginPath();
+    // Y-Axis
+    targetCtx.moveTo(config.padding.left, config.padding.top - (fSize * 1.5));
+    targetCtx.lineTo(config.padding.left, canvas.height - config.padding.bottom);
+    // X-Axis
+    targetCtx.lineTo(canvas.width - config.padding.right + (fSize * 1.5), canvas.height - config.padding.bottom);
+    targetCtx.stroke();
+
+    // Arrows
+    const arrowSize = fSize * 0.5;
+    targetCtx.fillStyle = '#000000';
+    targetCtx.beginPath(); // Y
+    targetCtx.moveTo(config.padding.left - arrowSize, config.padding.top - (fSize * 1.5));
+    targetCtx.lineTo(config.padding.left + arrowSize, config.padding.top - (fSize * 1.5));
+    targetCtx.lineTo(config.padding.left, config.padding.top - (fSize * 1.5) - arrowSize * 2.5);
+    targetCtx.fill();
+    targetCtx.beginPath(); // X
+    targetCtx.moveTo(canvas.width - config.padding.right + (fSize * 1.5), canvas.height - config.padding.bottom - arrowSize);
+    targetCtx.lineTo(canvas.width - config.padding.right + (fSize * 1.5), canvas.height - config.padding.bottom + arrowSize);
+    targetCtx.lineTo(canvas.width - config.padding.right + (fSize * 1.5) + arrowSize * 2.5, canvas.height - config.padding.bottom);
+    targetCtx.fill();
+
+    targetCtx.font = `${fSize}px ${fontName}`;
+    
+    // Y-Axis Label: v / m s⁻¹
+    targetCtx.textAlign = 'right';
+    targetCtx.textBaseline = 'middle';
+    const unitPartY = ' / m s⁻¹';
+    const unitWidthY = targetCtx.measureText(unitPartY).width;
+    const labelY_Y = config.padding.top - (fSize * 3.8);
+    targetCtx.fillText(unitPartY, config.padding.left - 10, labelY_Y);
+    targetCtx.font = `italic bold ${fSize}px ${fontName}`;
+    targetCtx.fillText('v', config.padding.left - 10 - unitWidthY, labelY_Y);
+
+    // X-Axis Label: t / s
+    targetCtx.font = `italic bold ${fSize}px ${fontName}`;
+    const labelX_X = canvas.width - config.padding.right + (fSize * 0.5);
+    const labelX_Y = canvas.height - config.padding.bottom + (fSize * 3.2);
+    targetCtx.textAlign = 'left';
+    targetCtx.fillText('t', labelX_X, labelX_Y);
+    targetCtx.font = `${fSize}px ${fontName}`;
+    const tWidth = targetCtx.measureText('t').width;
+    targetCtx.fillText(' / s', labelX_X + tWidth + 5, labelX_Y);
+
+    // 4. Ticks & Numbers (TIGHT TO AXIS)
+    targetCtx.font = `${fSize}px ${fontName}`;
+    targetCtx.textAlign = 'right';
+    for (let y = 0; y <= config.maxY; y += config.stepY) {
+        const py = mapY(y);
+        // Numbers closer to Y axis
+        targetCtx.fillText(y, config.padding.left - (fSize * 0.45), py + (fSize/4)); 
+        targetCtx.beginPath();
+        targetCtx.moveTo(config.padding.left, py);
+        targetCtx.lineTo(config.padding.left - 12, py); // Shorter tick
+        targetCtx.stroke();
+    }
+    
+    targetCtx.textAlign = 'center';
+    for (let x = 0; x <= config.maxX; x += config.stepX) {
+        const px = mapX(x);
+        // Numbers closer to X axis (1.3 instead of 2.2)
+        targetCtx.fillText(x, px, canvas.height - config.padding.bottom + (fSize * 1.3));
+        targetCtx.beginPath();
+        targetCtx.moveTo(px, canvas.height - config.padding.bottom);
+        targetCtx.lineTo(px, canvas.height - config.padding.bottom + 12); // Shorter tick
+        targetCtx.stroke();
+    }
+
+    // 5. The Main Graph Line
+    targetCtx.strokeStyle = '#000000';
+    targetCtx.lineWidth = 10;
+    targetCtx.lineJoin = 'round';
+    targetCtx.lineCap = 'round';
+    targetCtx.beginPath();
+    points.forEach((p, i) => {
+        if (i === 0) targetCtx.moveTo(mapX(p.x), mapY(p.y));
+        else targetCtx.lineTo(mapX(p.x), mapY(p.y));
+    });
+    targetCtx.stroke();
+
+    // 6. Interaction Nodes
+    if (!isExport && config.showPoints) {
+        points.forEach((p, i) => {
+            targetCtx.fillStyle = draggingIdx === i ? '#2563eb' : '#ef4444';
+            targetCtx.beginPath();
+            targetCtx.arc(mapX(p.x), mapY(p.y), 18, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.strokeStyle = 'white';
+            targetCtx.lineWidth = 4;
+            targetCtx.stroke();
+        });
+    }
+}
+
+let draggingIdx = -1;
+
+function getEventPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
+}
+
+function handleStart(e) {
+    const pos = getEventPos(e);
+    draggingIdx = points.findIndex(p => {
+        const dx = mapX(p.x) - pos.x;
+        const dy = mapY(p.y) - pos.y;
+        return Math.sqrt(dx * dx + dy * dy) < 60; 
+    });
+    if (draggingIdx !== -1) e.preventDefault();
+}
+
+function handleMove(e) {
+    if (draggingIdx === -1) return;
+    const pos = getEventPos(e);
+    let valX = unmapX(pos.x);
+    let valY = unmapY(pos.y);
+
+    if (config.snapToGrid) {
+        const snapX = config.stepX / 4;
+        const snapY = config.stepY / 4;
+        valX = Math.round(valX / snapX) * snapX;
+        valY = Math.round(valY / snapY) * snapY;
+    }
+
+    valX = Math.max(0, Math.min(config.maxX, valX));
+    valY = Math.max(0, Math.min(config.maxY, valY));
+
+    if (draggingIdx > 0) valX = Math.max(points[draggingIdx-1].x, valX);
+    if (draggingIdx < points.length - 1) valX = Math.min(points[draggingIdx+1].x, valX);
+
+    points[draggingIdx].x = valX;
+    points[draggingIdx].y = valY;
+    render(ctx);
+}
+
+function handleEnd() {
+    draggingIdx = -1;
+    render(ctx);
+}
+
+canvas.addEventListener('dblclick', (e) => {
+    if (points.length <= 2) return;
+    const pos = getEventPos(e);
+    const idx = points.findIndex(p => {
+        const dx = mapX(p.x) - pos.x;
+        const dy = mapY(p.y) - pos.y;
+        return Math.sqrt(dx * dx + dy * dy) < 60;
+    });
+    if (idx !== -1) {
+        points.splice(idx, 1);
+        render(ctx);
+    }
+});
+
+const inputs = ['maxY', 'stepY', 'maxX', 'stepX', 'showPoints', 'snapToGrid', 'fontSize', 'showArea'];
+inputs.forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+        config.maxY = parseFloat(document.getElementById('maxY').value) || 12;
+        config.stepY = parseFloat(document.getElementById('stepY').value) || 2;
+        config.maxX = parseFloat(document.getElementById('maxX').value) || 4;
+        config.stepX = parseFloat(document.getElementById('stepX').value) || 1;
+        config.fontSize = parseInt(document.getElementById('fontSize').value) || 44;
+        config.showPoints = document.getElementById('showPoints').checked;
+        config.snapToGrid = document.getElementById('snapToGrid').checked;
+        config.showArea = document.getElementById('showArea').checked;
+        
+        document.getElementById('fontSizeVal').innerText = config.fontSize;
+        render(ctx);
+    });
+});
+
+document.getElementById('addPointBtn').addEventListener('click', () => {
+    const last = points[points.length - 1];
+    points.push({ x: Math.min(config.maxX, last.x + 0.5), y: 0 });
+    render(ctx);
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+    points = [{ x: 0, y: 0 }, { x: 1, y: 10 }, { x: 3, y: 0 }];
+    render(ctx);
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tCtx = tempCanvas.getContext('2d');
+    render(tCtx, true);
+    const link = document.createElement('a');
+    link.download = `physics_vt_graph_${Date.now()}.png`;
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+});
+
+canvas.addEventListener('mousedown', handleStart);
+window.addEventListener('mousemove', handleMove);
+window.addEventListener('mouseup', handleEnd);
+canvas.addEventListener('touchstart', handleStart, { passive: false });
+window.addEventListener('touchmove', handleMove, { passive: false });
+window.addEventListener('touchend', handleEnd);
+
+window.onload = () => render(ctx);
+</script>
+</body>
+</html>
