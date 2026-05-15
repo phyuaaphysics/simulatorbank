@@ -74,25 +74,39 @@
 
         .delete-btn {
             position: absolute;
-            top: -10px;
-            right: -10px;
+            top: 2px;
+            right: 2px;
             background: #ef4444;
             color: white;
             border-radius: 50%;
-            width: 26px;
-            height: 26px;
+            width: 24px;
+            height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             opacity: 0;
             transition: all 0.2s;
             box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-            z-index: 50;
+            z-index: 60;
+            cursor: pointer;
+            border: none;
         }
 
         .hover-block:hover .delete-btn {
             opacity: 1;
-            transform: scale(1.1);
+        }
+
+        /* Drag and Drop Visual Feedback */
+        .dragging {
+            opacity: 0.2;
+        }
+
+        .drop-indicator {
+            height: 4px;
+            background: #3b82f6;
+            margin: 4px 0;
+            border-radius: 2px;
+            width: 100%;
         }
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -103,13 +117,26 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+        const { useState, useMemo, useEffect, useRef } = React;
 
-        // Lucide Icon Helper
         const Icon = ({ name, size = 16, className = "" }) => {
-            const LucideIcon = lucide.icons[name];
-            if (!LucideIcon) return null;
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (iconRef.current) {
+                    lucide.createIcons({
+                        attrs: {
+                            class: className,
+                            style: `width: ${size}px; height: ${size}px;`
+                        },
+                        nameAttr: 'data-lucide'
+                    });
+                }
+            }, [name, size, className]);
+            return (
+                <span ref={iconRef} className="inline-flex items-center justify-center">
+                    <i data-lucide={name}></i>
+                </span>
+            );
         };
 
         const INITIAL_DATA = [
@@ -120,7 +147,7 @@
                     number: '01',
                     title: '古典力學與運動',
                     subtitle: '探討宏觀世界的物理規律與數學描述',
-                    intro: '本章將帶領讀者進入物理學的核心：運動。我們將從基本的位移、速度與加速度出發，逐步建立起描述物體在空間中隨時間變化的理論框架。這些觀念不僅是物理學的基石，也是現代工程技術的根本。',
+                    intro: '本章將帶領讀者進入物理學的核心：運動。我們將從基本的位移、速度與加速度出發，逐步建立起描述物體在空間中隨時間變化的理論框架。',
                     objectives: '* 理解向量與純量的本質區別\n* 精確定義瞬時加速度與平均速度\n* 掌握三維空間中的彈道運動軌跡計算'
                 }
             },
@@ -132,7 +159,7 @@
             {
                 id: 'text-1',
                 type: 'text',
-                data: { content: '在物理學中，運動的描述取決於**參考坐標系**。當一個物體從位置 A 移動到位置 B 時，其軌跡可能非常複雜，但其位移始終為起始點到終點的向量差。我們必須區分路徑長度與位移的物理意義。' }
+                data: { content: '在物理學中，運動的描述取決於**參考坐標系**。當一個物體從位置 A 移動到位置 B 時，其軌跡可能非常複雜，但其位移始終為起始點到終點的向量差。' }
             },
             {
                 id: 'img-1',
@@ -158,10 +185,8 @@
             const [elements, setElements] = useState(INITIAL_DATA);
             const [selectedId, setSelectedId] = useState(null);
             const [zoom, setZoom] = useState(0.8);
-
-            useEffect(() => {
-                lucide.createIcons();
-            }, [elements, selectedId, zoom]);
+            const [draggedId, setDraggedId] = useState(null);
+            const [dropTargetId, setDropTargetId] = useState(null);
 
             const estimateHeight = (item) => {
                 switch (item.type) {
@@ -194,7 +219,6 @@
                         currentHeight += h;
                     }
                 });
-                
                 if (currentPage.length > 0) pageBuffer.push(currentPage);
                 return pageBuffer;
             }, [elements]);
@@ -204,7 +228,8 @@
                 const newElement = {
                     id: newId,
                     type: type,
-                    data: type === 'text' ? { content: '請在此輸入新的段落內容，支援 **粗體** 語法。' } :
+                    data: type === 'chapter-header' ? { number: '02', title: '新章節名稱', subtitle: '章節副標題', intro: '請輸入章節導論...', objectives: '* 目標 1\n* 目標 2' } :
+                          type === 'text' ? { content: '請在此輸入新的段落內容。' } :
                           type === 'image' ? { url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=1000', caption: '新圖片說明' } :
                           type === 'section-header' ? { number: '1.x', title: '新的小節標題' } :
                           type === 'youtube' ? { videoId: 'dQw4w9WgXcQ', title: '新的影片演示' } : 
@@ -224,6 +249,41 @@
                 if (selectedId === id) setSelectedId(null);
             };
 
+            const handleDragStart = (e, id) => {
+                setDraggedId(id);
+                e.dataTransfer.setData("text/plain", id);
+                e.dataTransfer.effectAllowed = "move";
+            };
+
+            const handleDragOver = (e, targetId) => {
+                e.preventDefault();
+                if (draggedId !== targetId) {
+                    setDropTargetId(targetId);
+                }
+            };
+
+            const handleDrop = (e, targetId) => {
+                e.preventDefault();
+                if (!draggedId || draggedId === targetId) {
+                    setDropTargetId(null);
+                    setDraggedId(null);
+                    return;
+                }
+
+                const newElements = [...elements];
+                const fromIndex = newElements.findIndex(el => el.id === draggedId);
+                const toIndex = newElements.findIndex(el => el.id === targetId);
+
+                if (fromIndex !== -1 && toIndex !== -1) {
+                    const [movedItem] = newElements.splice(fromIndex, 1);
+                    newElements.splice(toIndex, 0, movedItem);
+                    setElements(newElements);
+                }
+
+                setDraggedId(null);
+                setDropTargetId(null);
+            };
+
             const parseMarkdownList = (text) => {
                 if (!text) return [];
                 return text.split('\n')
@@ -233,9 +293,17 @@
 
             const BlockWrapper = ({ children, id }) => (
                 <div 
-                    className={`relative hover-block group transition-all duration-200 mb-2 ${selectedId === id ? 'ring-2 ring-blue-500 rounded bg-blue-50/10' : ''}`}
+                    draggable="true"
+                    onDragStart={(e) => handleDragStart(e, id)}
+                    onDragOver={(e) => handleDragOver(e, id)}
+                    onDrop={(e) => handleDrop(e, id)}
+                    onDragLeave={() => setDropTargetId(prev => prev === id ? null : prev)}
+                    className={`relative hover-block group transition-all duration-200 mb-1 cursor-grab active:cursor-grabbing 
+                        ${selectedId === id ? 'ring-2 ring-blue-500 rounded bg-blue-50/10' : ''} 
+                        ${draggedId === id ? 'dragging' : ''}`}
                     onClick={(e) => { e.stopPropagation(); setSelectedId(id); }}
                 >
+                    {dropTargetId === id && <div className="drop-indicator no-print" />}
                     <div className="edit-overlay absolute inset-0 z-10 pointer-events-none rounded transition-all" />
                     <button 
                         className="delete-btn no-print"
@@ -258,11 +326,14 @@
                                 </div>
                                 <div>
                                     <h1 className="font-black text-slate-900 tracking-tight leading-none text-sm uppercase">Textbook</h1>
-                                    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Builder v3.0</span>
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Builder v3.1</span>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => addElement('chapter-header')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-orange-50 border border-orange-100 rounded-xl hover:border-orange-500 transition-all text-orange-700">
+                                    <Icon name="award" size={14} className="text-orange-500" /> + CHAPTER
+                                </button>
                                 <button onClick={() => addElement('section-header')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-orange-500 transition-all text-slate-600">
                                     <Icon name="layout" size={14} className="text-orange-500" /> + SECTION
                                 </button>
@@ -272,8 +343,8 @@
                                 <button onClick={() => addElement('image')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-orange-500 transition-all text-slate-600">
                                     <Icon name="image" size={14} className="text-orange-500" /> + IMAGE
                                 </button>
-                                <button onClick={() => addElement('page-break')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-500 transition-all text-slate-600">
-                                    <Icon name="scissors" size={14} className="text-blue-500" /> + BREAK
+                                <button onClick={() => addElement('page-break')} className="col-span-2 flex items-center justify-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-500 transition-all text-slate-600">
+                                    <Icon name="scissors" size={14} className="text-blue-500" /> + NEW PAGE BREAK
                                 </button>
                             </div>
                         </div>
@@ -297,6 +368,7 @@
                                         <div className="space-y-4">
                                             <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="CH No." value={elements.find(e => e.id === selectedId).data.number} onChange={(e) => updateElement(selectedId, { number: e.target.value })} />
                                             <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Title" value={elements.find(e => e.id === selectedId).data.title} onChange={(e) => updateElement(selectedId, { title: e.target.value })} />
+                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Subtitle" value={elements.find(e => e.id === selectedId).data.subtitle} onChange={(e) => updateElement(selectedId, { subtitle: e.target.value })} />
                                             <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Intro Narrative" value={elements.find(e => e.id === selectedId).data.intro} onChange={(e) => updateElement(selectedId, { intro: e.target.value })} />
                                             <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono" placeholder="Learning Objectives (* ...)" value={elements.find(e => e.id === selectedId).data.objectives} onChange={(e) => updateElement(selectedId, { objectives: e.target.value })} />
                                         </div>
@@ -320,10 +392,6 @@
                                             <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="URL" value={elements.find(e => e.id === selectedId).data.url} onChange={(e) => updateElement(selectedId, { url: e.target.value })} />
                                             <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Caption" value={elements.find(e => e.id === selectedId).data.caption} onChange={(e) => updateElement(selectedId, { caption: e.target.value })} />
                                         </div>
-                                    )}
-
-                                    {elements.find(e => e.id === selectedId)?.type === 'youtube' && (
-                                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Video ID" value={elements.find(e => e.id === selectedId).data.videoId} onChange={(e) => updateElement(selectedId, { videoId: e.target.value })} />
                                     )}
                                 </div>
                             )}
