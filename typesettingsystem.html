@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大學教科書數位排版系統 - Premium Textbook Builder</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Serif+TC:wght@400;700&display=swap');
+        
+        :root {
+            --a4-width: 210mm;
+            --a4-height: 297mm;
+            --content-padding: 25mm 20mm;
+        }
+
+        body {
+            background: #f1f5f9;
+            font-family: 'Inter', -apple-system, sans-serif;
+            margin: 0;
+        }
+
+        .font-noto { font-family: 'Noto Serif TC', serif; }
+        .font-inter { font-family: 'Inter', sans-serif; }
+
+        .a4-page {
+            width: var(--a4-width);
+            height: var(--a4-height);
+            padding: var(--content-padding);
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.06);
+            position: relative;
+            overflow: hidden;
+            color: #1e293b;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+
+        .markdown-content p {
+            margin-bottom: 1.2em;
+            line-height: 1.85;
+            text-indent: 2em;
+            font-size: 11pt;
+            text-align: justify;
+        }
+
+        .markdown-content strong { font-weight: 700; color: #0f172a; }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            .a4-page { 
+                margin: 0; 
+                box-shadow: none; 
+                page-break-after: always; 
+                transform: scale(1) !important;
+            }
+        }
+
+        .hover-block:hover .edit-overlay {
+            border: 2px solid #3b82f6;
+            background: rgba(59, 130, 246, 0.02);
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+            z-index: 50;
+        }
+
+        .hover-block:hover .delete-btn {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // Lucide Icon Helper
+        const Icon = ({ name, size = 16, className = "" }) => {
+            const LucideIcon = lucide.icons[name];
+            if (!LucideIcon) return null;
+            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        };
+
+        const INITIAL_DATA = [
+            {
+                id: 'ch-1',
+                type: 'chapter-header',
+                data: {
+                    number: '01',
+                    title: '古典力學與運動',
+                    subtitle: '探討宏觀世界的物理規律與數學描述',
+                    intro: '本章將帶領讀者進入物理學的核心：運動。我們將從基本的位移、速度與加速度出發，逐步建立起描述物體在空間中隨時間變化的理論框架。這些觀念不僅是物理學的基石，也是現代工程技術的根本。',
+                    objectives: '* 理解向量與純量的本質區別\n* 精確定義瞬時加速度與平均速度\n* 掌握三維空間中的彈道運動軌跡計算'
+                }
+            },
+            {
+                id: 'sec-1',
+                type: 'section-header',
+                data: { number: '1.1', title: '直線運動學 (Linear Kinematics)' }
+            },
+            {
+                id: 'text-1',
+                type: 'text',
+                data: { content: '在物理學中，運動的描述取決於**參考坐標系**。當一個物體從位置 A 移動到位置 B 時，其軌跡可能非常複雜，但其位移始終為起始點到終點的向量差。我們必須區分路徑長度與位移的物理意義。' }
+            },
+            {
+                id: 'img-1',
+                type: 'image',
+                data: { 
+                    url: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&q=80&w=1000', 
+                    caption: '圖 1.1：三維坐標系下的運動分解' 
+                }
+            },
+            {
+                id: 'sec-2',
+                type: 'section-header',
+                data: { number: '1.2', title: '自由落體實驗' }
+            },
+            {
+                id: 'yt-1',
+                type: 'youtube',
+                data: { videoId: 'h0e2HAPTGF4', title: '實驗演示：自由落體與空氣阻力' }
+            }
+        ];
+
+        function App() {
+            const [elements, setElements] = useState(INITIAL_DATA);
+            const [selectedId, setSelectedId] = useState(null);
+            const [zoom, setZoom] = useState(0.8);
+
+            useEffect(() => {
+                lucide.createIcons();
+            }, [elements, selectedId, zoom]);
+
+            const estimateHeight = (item) => {
+                switch (item.type) {
+                    case 'chapter-header': return 130;
+                    case 'section-header': return 30;
+                    case 'text': 
+                        const charCount = item.data.content?.length || 0;
+                        return Math.max(25, (charCount / 35) * 8); 
+                    case 'image': return 100;
+                    case 'youtube': return 60;
+                    case 'page-break': return 1000;
+                    default: return 10;
+                }
+            };
+
+            const pages = useMemo(() => {
+                const pageBuffer = [];
+                let currentPage = [];
+                let currentHeight = 0;
+                const MAX_HEIGHT_MM = 250;
+
+                elements.forEach((item) => {
+                    const h = estimateHeight(item);
+                    if (item.type === 'page-break' || (currentHeight + h > MAX_HEIGHT_MM && currentPage.length > 0)) {
+                        pageBuffer.push(currentPage);
+                        currentPage = (item.type === 'page-break') ? [] : [item];
+                        currentHeight = (item.type === 'page-break') ? 0 : h;
+                    } else {
+                        currentPage.push(item);
+                        currentHeight += h;
+                    }
+                });
+                
+                if (currentPage.length > 0) pageBuffer.push(currentPage);
+                return pageBuffer;
+            }, [elements]);
+
+            const addElement = (type) => {
+                const newId = `id-${Date.now()}`;
+                const newElement = {
+                    id: newId,
+                    type: type,
+                    data: type === 'text' ? { content: '請在此輸入新的段落內容，支援 **粗體** 語法。' } :
+                          type === 'image' ? { url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=1000', caption: '新圖片說明' } :
+                          type === 'section-header' ? { number: '1.x', title: '新的小節標題' } :
+                          type === 'youtube' ? { videoId: 'dQw4w9WgXcQ', title: '新的影片演示' } : 
+                          { break: true }
+                };
+                setElements([...elements, newElement]);
+                setSelectedId(newId);
+            };
+
+            const updateElement = (id, newData) => {
+                setElements(elements.map(el => el.id === id ? { ...el, data: { ...el.data, ...newData } } : el));
+            };
+
+            const deleteElement = (e, id) => {
+                e.stopPropagation();
+                setElements(elements.filter(el => el.id !== id));
+                if (selectedId === id) setSelectedId(null);
+            };
+
+            const parseMarkdownList = (text) => {
+                if (!text) return [];
+                return text.split('\n')
+                    .filter(line => line.trim().startsWith('*') || line.trim().startsWith('-'))
+                    .map(line => line.replace(/^[\*\-]\s*/, ''));
+            };
+
+            const BlockWrapper = ({ children, id }) => (
+                <div 
+                    className={`relative hover-block group transition-all duration-200 mb-2 ${selectedId === id ? 'ring-2 ring-blue-500 rounded bg-blue-50/10' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); setSelectedId(id); }}
+                >
+                    <div className="edit-overlay absolute inset-0 z-10 pointer-events-none rounded transition-all" />
+                    <button 
+                        className="delete-btn no-print"
+                        onClick={(e) => deleteElement(e, id)}
+                    >
+                        <Icon name="x" size={14} />
+                    </button>
+                    {children}
+                </div>
+            );
+
+            return (
+                <div className="flex h-screen bg-slate-100 overflow-hidden">
+                    {/* SIDEBAR */}
+                    <aside className="w-80 bg-white border-r border-slate-200 flex flex-col no-print z-40 shadow-xl">
+                        <div className="p-6 border-b border-slate-100">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+                                    <Icon name="book-open" size={20} />
+                                </div>
+                                <div>
+                                    <h1 className="font-black text-slate-900 tracking-tight leading-none text-sm uppercase">Textbook</h1>
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Builder v3.0</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => addElement('section-header')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-orange-500 transition-all text-slate-600">
+                                    <Icon name="layout" size={14} className="text-orange-500" /> + SECTION
+                                </button>
+                                <button onClick={() => addElement('text')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-orange-500 transition-all text-slate-600">
+                                    <Icon name="type" size={14} className="text-orange-500" /> + TEXT
+                                </button>
+                                <button onClick={() => addElement('image')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-orange-500 transition-all text-slate-600">
+                                    <Icon name="image" size={14} className="text-orange-500" /> + IMAGE
+                                </button>
+                                <button onClick={() => addElement('page-break')} className="flex items-center gap-2 p-3 text-[10px] font-bold bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-500 transition-all text-slate-600">
+                                    <Icon name="scissors" size={14} className="text-blue-500" /> + BREAK
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                            {!selectedId ? (
+                                <div className="text-center py-20">
+                                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                                        <Icon name="plus-circle" size={32} />
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select to edit</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Editing Block</h3>
+                                        <button onClick={() => setSelectedId(null)} className="text-xs font-bold text-blue-500">Finish</button>
+                                    </div>
+
+                                    {elements.find(e => e.id === selectedId)?.type === 'chapter-header' && (
+                                        <div className="space-y-4">
+                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="CH No." value={elements.find(e => e.id === selectedId).data.number} onChange={(e) => updateElement(selectedId, { number: e.target.value })} />
+                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Title" value={elements.find(e => e.id === selectedId).data.title} onChange={(e) => updateElement(selectedId, { title: e.target.value })} />
+                                            <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Intro Narrative" value={elements.find(e => e.id === selectedId).data.intro} onChange={(e) => updateElement(selectedId, { intro: e.target.value })} />
+                                            <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono" placeholder="Learning Objectives (* ...)" value={elements.find(e => e.id === selectedId).data.objectives} onChange={(e) => updateElement(selectedId, { objectives: e.target.value })} />
+                                        </div>
+                                    )}
+
+                                    {elements.find(e => e.id === selectedId)?.type === 'section-header' && (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-4 gap-2">
+                                                <input className="col-span-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={elements.find(e => e.id === selectedId).data.number} onChange={(e) => updateElement(selectedId, { number: e.target.value })} />
+                                                <input className="col-span-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={elements.find(e => e.id === selectedId).data.title} onChange={(e) => updateElement(selectedId, { title: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {elements.find(e => e.id === selectedId)?.type === 'text' && (
+                                        <textarea rows={12} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-noto" value={elements.find(e => e.id === selectedId).data.content} onChange={(e) => updateElement(selectedId, { content: e.target.value })} />
+                                    )}
+
+                                    {elements.find(e => e.id === selectedId)?.type === 'image' && (
+                                        <div className="space-y-3">
+                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="URL" value={elements.find(e => e.id === selectedId).data.url} onChange={(e) => updateElement(selectedId, { url: e.target.value })} />
+                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Caption" value={elements.find(e => e.id === selectedId).data.caption} onChange={(e) => updateElement(selectedId, { caption: e.target.value })} />
+                                        </div>
+                                    )}
+
+                                    {elements.find(e => e.id === selectedId)?.type === 'youtube' && (
+                                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Video ID" value={elements.find(e => e.id === selectedId).data.videoId} onChange={(e) => updateElement(selectedId, { videoId: e.target.value })} />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-6 border-t border-slate-100">
+                            <button className="w-full bg-slate-900 text-white p-4 rounded-2xl text-xs font-bold hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg" onClick={() => window.print()}>
+                                <Icon name="download" size={14} /> EXPORT PDF
+                            </button>
+                        </div>
+                    </aside>
+
+                    {/* PREVIEW */}
+                    <main className="flex-1 overflow-y-auto p-12 flex flex-col items-center custom-scrollbar" onClick={() => setSelectedId(null)}>
+                        <div className="fixed bottom-10 right-10 bg-white/80 backdrop-blur shadow-2xl rounded-full p-2 flex items-center gap-2 z-50 no-print border border-slate-200">
+                           <button onClick={(e) => { e.stopPropagation(); setZoom(Math.max(0.4, zoom - 0.05))}} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-full font-black text-slate-600">-</button>
+                           <span className="text-[10px] font-black text-slate-900 w-12 text-center">{Math.round(zoom * 100)}%</span>
+                           <button onClick={(e) => { e.stopPropagation(); setZoom(Math.min(1.2, zoom + 0.05))}} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-full font-black text-slate-600">+</button>
+                        </div>
+
+                        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}>
+                            {pages.map((pageContent, pageIdx) => (
+                                <div key={pageIdx} className="a4-page">
+                                    <div className="flex-1">
+                                        {pageContent.map((item) => (
+                                            <BlockWrapper key={item.id} id={item.id}>
+                                                {item.type === 'chapter-header' && (
+                                                    <div className="mb-8">
+                                                        <div className="bg-white p-10 relative overflow-hidden border-b-2 border-slate-100">
+                                                            <div className="absolute right-[-10px] top-[-20px] text-[180px] font-black text-slate-50 font-inter leading-none select-none z-0">
+                                                                {item.data.number}
+                                                            </div>
+                                                            <div className="relative z-10">
+                                                                <div className="flex items-center gap-4 mb-4">
+                                                                    <span className="bg-orange-500 text-white px-3 py-1 text-[10px] font-black tracking-[0.2em] uppercase rounded-sm">Chapter {item.data.number}</span>
+                                                                    <div className="h-px flex-1 bg-slate-100"></div>
+                                                                </div>
+                                                                <h1 className="text-6xl font-black font-inter mb-4 tracking-tighter text-slate-900 uppercase">
+                                                                    {item.data.title}
+                                                                </h1>
+                                                                <p className="text-slate-400 text-xl tracking-tight font-medium border-l-4 border-orange-500 pl-4">
+                                                                    {item.data.subtitle}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-12 gap-8 items-start px-2 mt-8">
+                                                            <div className="col-span-7">
+                                                                <div className="text-[11pt] text-slate-700 leading-[1.85] font-noto">
+                                                                    {item.data.intro}
+                                                                </div>
+                                                            </div>
+                                                            <div className="col-span-5 border-t-2 border-slate-900 pt-4">
+                                                                <div className="flex items-center gap-2 mb-4">
+                                                                    <span className="bg-slate-900 text-white px-2 py-0.5 text-[10px] font-black">TOPIC</span>
+                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">學習重點</span>
+                                                                </div>
+                                                                <div className="space-y-3">
+                                                                    {parseMarkdownList(item.data.objectives).map((obj, i) => (
+                                                                        <div key={i} className="flex gap-2 text-xs font-bold text-slate-600 leading-snug">
+                                                                            <Icon name="check-circle-2" size={14} className="text-cyan-500 mt-0.5 shrink-0" />
+                                                                            <span>{obj}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {item.type === 'section-header' && (
+                                                    <div className="mt-6 mb-4 flex items-center gap-4 border-b border-slate-200 pb-2 px-2">
+                                                        <span className="text-[12pt] font-black text-cyan-600 font-inter tracking-tight">
+                                                            {item.data.number}
+                                                        </span>
+                                                        <h2 className="text-[12pt] font-bold text-slate-900 font-inter uppercase tracking-tight">
+                                                            {item.data.title}
+                                                        </h2>
+                                                    </div>
+                                                )}
+
+                                                {item.type === 'text' && (
+                                                    <div className="px-2 mb-2">
+                                                        <div className="markdown-content font-noto" dangerouslySetInnerHTML={{ 
+                                                            __html: `<p>${item.data.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>` 
+                                                        }} />
+                                                    </div>
+                                                )}
+
+                                                {item.type === 'image' && (
+                                                    <div className="my-6 px-2 text-center">
+                                                        <div className="rounded-xl overflow-hidden shadow-lg border-4 border-white inline-block max-w-full">
+                                                            <img src={item.data.url} alt="" className="h-auto object-cover max-h-[300px]" />
+                                                        </div>
+                                                        <p className="mt-3 text-[10px] font-bold text-slate-400 italic">
+                                                            {item.data.caption}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {item.type === 'youtube' && (
+                                                    <div className="my-4 px-2">
+                                                        <div className="bg-slate-900 rounded-xl p-5 flex items-center justify-between border border-slate-800">
+                                                           <div className="flex items-center gap-5">
+                                                              <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl">
+                                                                <Icon name="play-circle" size={24} />
+                                                              </div>
+                                                              <div>
+                                                                 <span className="text-[9px] font-black text-red-500 tracking-[0.2em] uppercase">Laboratory Demo</span>
+                                                                 <h4 className="text-white font-bold text-base leading-tight">{item.data.title || '影片演示'}</h4>
+                                                              </div>
+                                                           </div>
+                                                           <div className="bg-white/10 px-3 py-1 rounded-full text-[9px] text-white font-bold backdrop-blur">VIEW LAB</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </BlockWrapper>
+                                        ))}
+                                    </div>
+                                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between px-2 pb-2">
+                                        <span className="text-[9px] font-bold text-slate-300 tracking-widest uppercase italic">Fundamental Physics Series</span>
+                                        <span className="text-[10px] font-black text-slate-400">P. {pageIdx + 1}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
