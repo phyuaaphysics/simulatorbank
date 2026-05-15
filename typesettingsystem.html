@@ -13,6 +13,13 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Markdown Parser (marked.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- LaTeX Support (KaTeX) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Serif+TC:wght@400;700&display=swap');
         
@@ -53,6 +60,20 @@
             font-size: 11pt;
             text-align: justify;
         }
+        
+        /* Markdown specific overrides to maintain textbook style */
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 { 
+            font-weight: 700; 
+            margin-top: 1em; 
+            margin-bottom: 0.5em; 
+            text-indent: 0;
+        }
+        .markdown-content ul, .markdown-content ol { 
+            margin-left: 3em; 
+            margin-bottom: 1em; 
+            text-indent: 0;
+        }
+        .markdown-content li { margin-bottom: 0.5em; }
 
         .markdown-content strong { font-weight: 700; color: #0f172a; }
 
@@ -111,6 +132,13 @@
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* KaTeX responsiveness */
+        .katex-display {
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -159,7 +187,7 @@
             {
                 id: 'text-1',
                 type: 'text',
-                data: { content: '在物理學中，運動的描述取決於**參考坐標系**。當一個物體從位置 A 移動到位置 B 時，其軌跡可能非常複雜，但其位移始終為起始點到終點的向量差。' }
+                data: { content: '在物理學中，運動的描述取決於**參考坐標系**。當一個物體從位置 A 移動到位置 B 時，其軌跡可能非常複雜，但其位移始終為起始點到終點的向量差。其數學表達式為：\n\n$$\\vec{s} = \\vec{r}_f - \\vec{r}_i$$\n\n其中 $\\vec{s}$ 代表位移向量。' }
             },
             {
                 id: 'img-1',
@@ -229,13 +257,26 @@
                     id: newId,
                     type: type,
                     data: type === 'chapter-header' ? { number: '02', title: '新章節名稱', subtitle: '章節副標題', intro: '請輸入章節導論...', objectives: '* 目標 1\n* 目標 2' } :
-                          type === 'text' ? { content: '請在此輸入新的段落內容。' } :
+                          type === 'text' ? { content: '請在此輸入新的段落內容。支援 **Markdown** 與 $E=mc^2$。' } :
                           type === 'image' ? { url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=1000', caption: '新圖片說明' } :
                           type === 'section-header' ? { number: '1.x', title: '新的小節標題' } :
                           type === 'youtube' ? { videoId: 'dQw4w9WgXcQ', title: '新的影片演示' } : 
                           { break: true }
                 };
-                setElements([...elements, newElement]);
+                
+                const newElements = [...elements];
+                if (selectedId) {
+                    const index = newElements.findIndex(el => el.id === selectedId);
+                    if (index !== -1) {
+                        newElements.splice(index + 1, 0, newElement);
+                    } else {
+                        newElements.push(newElement);
+                    }
+                } else {
+                    newElements.push(newElement);
+                }
+                
+                setElements(newElements);
                 setSelectedId(newId);
             };
 
@@ -315,6 +356,36 @@
                 </div>
             );
 
+            // Component for rendered markdown text
+            const MarkdownBlock = ({ content }) => {
+                const containerRef = useRef(null);
+                
+                const html = useMemo(() => {
+                    if (!content) return "";
+                    return marked.parse(content);
+                }, [content]);
+
+                useEffect(() => {
+                    if (containerRef.current) {
+                        renderMathInElement(containerRef.current, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError: false
+                        });
+                    }
+                }, [html]);
+
+                return (
+                    <div 
+                        ref={containerRef}
+                        className="markdown-content font-noto px-2 mb-2"
+                        dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                );
+            };
+
             return (
                 <div className="flex h-screen bg-slate-100 overflow-hidden">
                     {/* SIDEBAR */}
@@ -326,7 +397,7 @@
                                 </div>
                                 <div>
                                     <h1 className="font-black text-slate-900 tracking-tight leading-none text-sm uppercase">Textbook</h1>
-                                    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Builder v3.1</span>
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Builder v3.2</span>
                                 </div>
                             </div>
 
@@ -384,7 +455,11 @@
                                     )}
 
                                     {elements.find(e => e.id === selectedId)?.type === 'text' && (
-                                        <textarea rows={12} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-noto" value={elements.find(e => e.id === selectedId).data.content} onChange={(e) => updateElement(selectedId, { content: e.target.value })} />
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Markdown Content</label>
+                                            <textarea rows={12} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono" value={elements.find(e => e.id === selectedId).data.content} onChange={(e) => updateElement(selectedId, { content: e.target.value })} />
+                                            <p className="text-[10px] text-slate-400">Tip: Use $...$ for math, **...** for bold.</p>
+                                        </div>
                                     )}
 
                                     {elements.find(e => e.id === selectedId)?.type === 'image' && (
@@ -473,11 +548,7 @@
                                                 )}
 
                                                 {item.type === 'text' && (
-                                                    <div className="px-2 mb-2">
-                                                        <div className="markdown-content font-noto" dangerouslySetInnerHTML={{ 
-                                                            __html: `<p>${item.data.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>` 
-                                                        }} />
-                                                    </div>
+                                                    <MarkdownBlock content={item.data.content} />
                                                 )}
 
                                                 {item.type === 'image' && (
