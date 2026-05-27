@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>縱波對比與格數計數器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .canvas-container { background-color: white; border: 2px solid #334155; position: relative; cursor: pointer; }
+        .grid-bg { 
+            background-image: 
+                linear-gradient(to right, #cbd5e1 2px, transparent 2px), 
+                linear-gradient(to bottom, #cbd5e1 2px, transparent 2px);
+            background-size: 60px 60px;
+        }
+        .zoom-bg {
+            background-image: 
+                linear-gradient(to right, #cbd5e1 2px, transparent 2px), 
+                linear-gradient(to bottom, #cbd5e1 2px, transparent 2px),
+                linear-gradient(to right, #e2e8f0 1px, transparent 1px);
+            background-size: 60px 60px, 60px 60px, 12px 60px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold text-slate-800 mb-6">縱波傳播：點擊下方質點進行分析</h1>
+        
+        <div class="mb-8">
+            <div class="flex justify-between items-center mb-2">
+                <h2 id="statusTitle" class="text-md font-semibold text-blue-800">動態波動狀態</h2>
+                <span class="px-3 py-1 bg-blue-100 text-blue-700 font-bold rounded">傳播方向：右 →</span>
+            </div>
+            <canvas id="waveCanvas" width="800" height="100" class="canvas-container grid-bg w-full"></canvas>
+        </div>
+        
+        <div>
+            <h2 class="text-md font-semibold text-slate-600 mb-2">平衡位置參考 (點擊下方圓點選取)</h2>
+            <canvas id="staticCanvas" width="800" height="100" class="canvas-container grid-bg w-full"></canvas>
+        </div>
+        
+        <div class="flex gap-4 mt-6">
+            <button id="toggleBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">暫停 / 繼續</button>
+            <button id="zoomBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">🔍 放大格線</button>
+        </div>
+
+        <div id="analysisPanel" class="bg-white p-6 rounded-xl shadow-md border border-slate-200 mt-6">
+            <h2 id="targetPointTitle" class="text-xl font-bold mb-4 text-slate-800">選定質點分析</h2>
+            <table class="w-full text-left border-collapse mb-4">
+                <thead>
+                    <tr class="border-b bg-slate-50">
+                        <th class="py-2 px-2">項目</th>
+                        <th class="py-2 px-2">數值 (小格單位)</th>
+                    </tr>
+                </thead>
+                <tbody id="analysisBody"></tbody>
+            </table>
+            <div class="flex gap-2">
+                <button id="alignBtn" class="px-3 py-1 bg-slate-600 text-white rounded text-sm">顯示對齊線</button>
+                <button id="checkBtn" class="px-3 py-1 bg-purple-600 text-white rounded text-sm">檢驗傳播方向</button>
+            </div>
+            <p id="checkResult" class="mt-4 font-bold text-purple-700"></p>
+        </div>
+    </div>
+
+    <script>
+        const waveCanvas = document.getElementById('waveCanvas');
+        const staticCanvas = document.getElementById('staticCanvas');
+        const ctxW = waveCanvas.getContext('2d');
+        const ctxS = staticCanvas.getContext('2d');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const zoomBtn = document.getElementById('zoomBtn');
+        const alignBtn = document.getElementById('alignBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const analysisPanel = document.getElementById('analysisPanel');
+        const analysisBody = document.getElementById('analysisBody');
+        const checkResult = document.getElementById('checkResult');
+        const targetPointTitle = document.getElementById('targetPointTitle');
+        
+        let time = 0;
+        let isPaused = false;
+        let isZoomed = false;
+        let showAlign = false;
+        let selectedIdx = 3; 
+        const labels = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'];
+        const spacing = 60;
+        const subGridSize = 12;
+
+        staticCanvas.addEventListener('click', (e) => {
+            const rect = staticCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            labels.forEach((_, i) => {
+                const baseX = (i + 1) * spacing;
+                if (Math.abs(x - baseX) < 20) {
+                    selectedIdx = i;
+                    analysisPanel.style.display = 'block';
+                }
+            });
+        });
+
+        toggleBtn.addEventListener('click', () => isPaused = !isPaused);
+        zoomBtn.addEventListener('click', () => {
+            isZoomed = !isZoomed;
+            waveCanvas.classList.toggle('zoom-bg', isZoomed);
+            staticCanvas.classList.toggle('zoom-bg', isZoomed);
+        });
+        alignBtn.addEventListener('click', () => showAlign = !showAlign);
+        
+        checkBtn.addEventListener('click', () => {
+            const dispCurrent = Math.sin(time - selectedIdx * 0.4);
+            const dispNext = Math.sin(time - (selectedIdx - 1) * 0.4); 
+            const diff = dispNext - dispCurrent;
+            checkResult.innerText = `列表分析：質點 ${labels[selectedIdx]} 目前傾向於 ${diff > 0 ? "向右" : "向左"} 移動。`;
+        });
+
+        function updateAnalysis() {
+            const idx = selectedIdx;
+            const nextIdx = Math.max(0, idx - 1); 
+            const dispCurrent = Math.sin(time - idx * 0.4) * 60 / subGridSize;
+            const dispNext = Math.sin(time - nextIdx * 0.4) * 60 / subGridSize;
+            
+            targetPointTitle.innerText = `質點 ${labels[idx]} 數據分析`;
+            analysisBody.innerHTML = `
+                <tr class="border-b"><td class="py-2 px-2">${labels[idx]} 位移</td><td class="py-2 px-2">${dispCurrent.toFixed(1)}</td></tr>
+                <tr class="border-b"><td class="py-2 px-2">${labels[nextIdx]} (後點) 位移</td><td class="py-2 px-2">${dispNext.toFixed(1)}</td></tr>
+            `;
+        }
+
+        function draw() {
+            if (!isPaused) time += 0.05;
+            updateAnalysis();
+            ctxW.clearRect(0, 0, 800, 100);
+            ctxS.clearRect(0, 0, 800, 100);
+
+            for(let i = 0; i < labels.length; i++) {
+                const baseX = (i + 1) * spacing;
+                const disp = Math.sin(time - i * 0.4) * 60;
+                
+                ctxW.beginPath();
+                ctxW.arc(baseX + disp, 50, 6, 0, Math.PI * 2);
+                ctxW.fillStyle = (i === selectedIdx) ? '#ef4444' : '#1e293b'; 
+                ctxW.fill();
+                ctxW.fillStyle = '#475569';
+                ctxW.fillText(labels[i], baseX + disp - 4, 30);
+                
+                if (showAlign && i === selectedIdx) {
+                    ctxW.strokeStyle = 'red';
+                    ctxW.beginPath(); ctxW.moveTo(baseX + disp, 0); ctxW.lineTo(baseX + disp, 100); ctxW.stroke();
+                    ctxS.strokeStyle = 'red';
+                    ctxS.beginPath(); ctxS.moveTo(baseX, 0); ctxS.lineTo(baseX, 100); ctxS.stroke();
+                }
+
+                ctxS.beginPath();
+                ctxS.arc(baseX, 50, 6, 0, Math.PI * 2);
+                ctxS.fillStyle = (i === selectedIdx) ? '#ef4444' : '#94a3b8';
+                ctxS.fill();
+                ctxS.fillStyle = '#475569';
+                ctxS.fillText(labels[i], baseX - 4, 30);
+            }
+            requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+</html>
