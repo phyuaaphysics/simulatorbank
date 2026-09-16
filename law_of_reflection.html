@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反射定律 3D 模擬器 · 三線共面 · Law of Reflection 3D</title>
+<style>
+  :root {
+    --bg-1: #1e3c72;
+    --bg-2: #2a5298;
+    --stage-1: #0d1830;
+    --stage-2: #061326;
+    --text: #f5f7fa;
+    --muted: #b8c5d6;
+    --panel: rgba(255,255,255,0.07);
+    --accent: #ffa726;
+    --accent-soft: #ffd54f;
+    --ok: #44dd99;
+    --warn: #ff7043;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "PMingLiU", "PingFang TC", sans-serif;
+    background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+  .container { max-width: 1180px; margin: 0 auto; }
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 18px; flex-wrap: wrap; gap: 12px;
+  }
+  h1 {
+    margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .subtitle { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .badge {
+    background: var(--panel); padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; color: var(--accent-soft);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .stage {
+    background: radial-gradient(ellipse at center, var(--stage-1) 0%, var(--stage-2) 100%);
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    height: 540px;
+    position: relative;
+  }
+  .stage canvas { display: block; outline: none; }
+
+  .stage-legend {
+    position: absolute; top: 14px; left: 14px;
+    background: rgba(8, 18, 38, 0.78);
+    color: var(--text);
+    padding: 10px 14px; border-radius: 10px;
+    font-size: 12px; line-height: 1.7;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+    z-index: 5; pointer-events: none;
+  }
+  .stage-legend .row { display: flex; align-items: center; gap: 8px; }
+  .stage-legend .swatch {
+    display: inline-block; width: 18px; height: 3px; border-radius: 2px;
+  }
+  .stage-legend .swatch-area {
+    display: inline-block; width: 16px; height: 10px; border-radius: 2px;
+    background: rgba(68, 221, 153, 0.35); border: 1px solid #44dd99;
+  }
+
+  .stage-hint {
+    position: absolute; bottom: 14px; right: 14px;
+    background: rgba(8, 18, 38, 0.78);
+    color: var(--muted);
+    padding: 8px 12px; border-radius: 8px;
+    font-size: 11px;
+    border: 1px solid rgba(255,255,255,0.08);
+    z-index: 5; pointer-events: none;
+    backdrop-filter: blur(8px);
+  }
+
+  .stage-err {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(8, 18, 38, 0.92);
+    z-index: 10; color: var(--warn); text-align: center;
+    padding: 20px; flex-direction: column; gap: 8px;
+  }
+
+  .controls { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 720px) { .controls { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border-radius: 14px; padding: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .panel h3 {
+    margin: 0 0 14px; font-size: 13px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600;
+  }
+
+  .row { margin-bottom: 14px; }
+  .row:last-child { margin-bottom: 0; }
+  .row label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 14px; margin-bottom: 8px; color: var(--muted);
+  }
+  .row label .val {
+    color: var(--accent); font-weight: 700;
+    font-family: "Cambria Math", "Times New Roman", serif; font-size: 15px;
+  }
+  input[type=range] {
+    width: 100%; accent-color: var(--accent);
+    height: 4px; cursor: pointer;
+  }
+
+  .toggle-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; font-size: 13px; color: var(--text);
+    cursor: pointer; user-select: none;
+  }
+  .toggle-row input { accent-color: var(--accent); cursor: pointer; }
+
+  .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+  button {
+    flex: 1; padding: 9px 12px; background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+    color: var(--text); cursor: pointer; font-size: 13px;
+    transition: all .2s; font-family: inherit;
+  }
+  button:hover { background: rgba(255,255,255,0.14); }
+  button:active { transform: translateY(1px); }
+
+  .data-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; margin-bottom: 14px;
+  }
+  .data-card {
+    background: rgba(0,0,0,0.28); border-radius: 10px; padding: 10px;
+    text-align: center; border: 1px solid rgba(255,255,255,0.06);
+  }
+  .data-card .label {
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .data-card .value {
+    font-size: 22px; font-weight: 700; color: var(--accent);
+    font-family: "Cambria Math", serif; margin-top: 4px;
+  }
+
+  .formula-box {
+    background: linear-gradient(135deg, rgba(255,167,38,0.18), rgba(255,213,79,0.04));
+    border: 1px solid rgba(255,167,38,0.4); border-radius: 10px;
+    padding: 14px; text-align: center;
+  }
+  .formula {
+    font-family: "Cambria Math", "Times New Roman", serif;
+    font-size: 18px; color: var(--accent-soft); font-weight: 600;
+    line-height: 1.6;
+  }
+  .formula sub { font-size: 13px; }
+  .formula-desc {
+    font-size: 12px; color: var(--muted); margin-top: 6px;
+    font-style: italic;
+  }
+
+  .coplanarity {
+    background: linear-gradient(135deg, rgba(68,221,153,0.16), rgba(68,221,153,0.04));
+    border: 1px solid rgba(68,221,153,0.45); border-radius: 10px;
+    padding: 12px 14px; margin-top: 12px; text-align: center;
+    color: var(--ok); font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .coplanarity .icon { font-size: 18px; }
+
+  .coplanarity-violation {
+    background: linear-gradient(135deg, rgba(255,112,67,0.20), rgba(255,112,67,0.04));
+    border: 1px solid rgba(255,112,67,0.55); border-radius: 10px;
+    padding: 12px 14px; margin-top: 12px; text-align: center;
+    color: var(--warn); font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    animation: pulseWarn 1.6s ease-in-out infinite;
+  }
+  .coplanarity-violation .icon { font-size: 18px; }
+  .coplanarity-violation .calc {
+    font-family: "Cambria Math", serif;
+    background: rgba(0,0,0,0.35); padding: 4px 10px; border-radius: 6px;
+    margin-left: 4px; font-size: 13px; color: #ffe1cc;
+  }
+  @keyframes pulseWarn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,112,67,0.35); }
+    50%      { box-shadow: 0 0 0 6px rgba(255,112,67,0); }
+  }
+
+  .mode-tabs-v2 {
+    display: flex; gap: 6px; margin-bottom: 14px;
+  }
+  .mode-tab-v2 {
+    flex: 1; padding: 9px 6px; background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    cursor: pointer; text-align: center; font-size: 12px;
+    transition: all .2s; user-select: none; line-height: 1.3;
+  }
+  .mode-tab-v2:hover { background: rgba(255,255,255,0.08); }
+  .mode-tab-v2.active {
+    background: var(--accent); color: #1e3c72;
+    border-color: var(--accent); font-weight: 700;
+  }
+  .mode-tab-v2 small {
+    display: block; font-size: 10px; font-weight: 400;
+    opacity: 0.85; margin-top: 2px;
+  }
+
+  .row-divider {
+    height: 1px; background: rgba(255,255,255,0.1); margin: 14px 0 12px;
+  }
+  .row-section-label {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1.2px; font-weight: 600; margin-bottom: 6px;
+  }
+
+  .hint {
+    background: rgba(255,167,38,0.05); border-left: 3px solid var(--accent);
+    padding: 8px 12px; margin-top: 12px; border-radius: 4px;
+    font-size: 12px; color: var(--muted);
+  }
+  .hint b { color: var(--accent-soft); }
+  .hint ul { margin: 4px 0 0; padding-left: 16px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>🪞 反射定律 3D 模擬器</h1>
+      <div class="subtitle">理解三線共面 · The Three Coplanar Lines of Reflection</div>
+    </div>
+    <span class="badge">高中物理 · 幾何光學進階</span>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="stage-legend">
+      <div class="row"><span class="swatch" style="background:#ffaa00"></span>入射線 (incident)</div>
+      <div class="row"><span class="swatch" style="background:#ff3344"></span>反射線 (reflected)</div>
+      <div class="row"><span class="swatch" style="background:#fff066;opacity:0.7"></span>應有反射線 ghost</div>
+      <div class="row"><span class="swatch" style="background:#00aaff"></span>法線 (normal N)</div>
+      <div class="row"><span class="swatch-area"></span>入射面 (plane of incidence)</div>
+    </div>
+    <div class="stage-hint">🖱 左鍵拖動旋轉視角 · 滾輪縮放 · 右鍵平移</div>
+    <div class="stage-err" id="errBox" style="display:none">
+      <div style="font-size:36px">⚠️</div>
+      <div style="font-size:16px">3D 模組載入失敗</div>
+      <div style="font-size:12px; color:#b8c5d6">請確認網絡可訪問 unpkg.com / esm.sh</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="panel">
+      <h3>⚙ 互動控制</h3>
+
+      <div class="mode-tabs-v2">
+        <div class="mode-tab-v2 active" data-mode="standard">標準反射<small>共面 · 物理合法</small></div>
+        <div class="mode-tab-v2" data-mode="custom">學生自訂<small>探索違反情況</small></div>
+      </div>
+
+      <div class="row-section-label" style="margin-top:4px">入射光設定</div>
+      <div class="row">
+        <label>
+          <span>入射角 θ<sub>i</sub>（與法線夾角）</span>
+          <span class="val" id="thIVal">30°</span>
+        </label>
+        <input type="range" id="thISlider" min="5" max="85" value="30" step="1">
+      </div>
+      <div class="row">
+        <label>
+          <span>出平面角 φ（沿 y 軸旋轉入射方向）</span>
+          <span class="val" id="phiVal">0°</span>
+        </label>
+        <input type="range" id="phiSlider" min="-90" max="90" value="0" step="1">
+      </div>
+
+      <!-- 學生自訂模式專屬 -->
+      <div id="customControls" style="display:none">
+        <div class="row-divider"></div>
+        <div class="row-section-label">學生自訂反射方向</div>
+        <div class="row">
+          <label>
+            <span>反射線相對法線角 θ<sub>r</sub>' <span style="color:var(--muted);font-weight:400">（自訂）</span></span>
+            <span class="val" id="thRPrimeVal">30°</span>
+          </label>
+          <input type="range" id="thRPrimeSlider" min="5" max="85" value="30" step="1">
+        </div>
+        <div class="row">
+          <label>
+            <span>出平面偏差角 δ <span style="color:var(--warn);font-weight:400">（違規量）</span></span>
+            <span class="val" id="deltaVal">0°</span>
+          </label>
+          <input type="range" id="deltaSlider" min="0" max="60" value="0" step="1">
+        </div>
+      </div>
+
+      <div class="row-divider"></div>
+      <div class="row-section-label">顯示設定</div>
+      <div class="row">
+        <label class="toggle-row">
+          <input type="checkbox" id="showRefPlane" checked>
+          <span>顯示入射面（綠色 plane）</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="showMirror" checked>
+          <span>顯示反射鏡</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="showNormal" checked>
+          <span>顯示法線</span>
+        </label>
+        <label class="toggle-row" id="showLegalRow" style="display:none">
+          <input type="checkbox" id="showLegal" checked>
+          <span>顯示應有反射線（黃色 ghost）</span>
+        </label>
+      </div>
+      <div class="btn-group">
+        <button id="resetBtn">↺ 重設</button>
+        <button id="animBtn">🔄 自動環視</button>
+        <button id="topBtn">⬆ 俯視視角</button>
+      </div>
+
+      <div class="hint" id="hintStandard">
+        <b>實證三線共面：</b>
+        <ul>
+          <li>將 φ 拉到非 0° — 入射線離開法線平面</li>
+          <li>綠色「入射面」會跟住傾斜，把 <b>入射線</b>、<b>法線</b>、<b>反射線</b> 三條包在內</li>
+          <li>轉任何視角，三條線都係被同一個平面貫穿 — 呢個就係 <b>三線共面</b></li>
+        </ul>
+      </div>
+      <div class="hint" id="hintCustom" style="display:none">
+        <b>探索違反三線共面：</b>
+        <ul>
+          <li><b style="color:var(--warn)">δ</b> 量度反射線偏離入射面嘅角度</li>
+          <li>δ = 0° → 紅線同黃線重合（合法）</li>
+          <li>δ &gt; 0° → 紅線穿出綠色入射面，右面板出現 ⚠️</li>
+          <li>黃色 ghost 線係「物理上應該」嘅反射線，做對比</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>📊 量度數據 &amp; 反射定律</h3>
+      <div class="data-grid">
+        <div class="data-card">
+          <div class="label">入射角 θ<sub>i</sub></div>
+          <div class="value" id="dThI">30°</div>
+        </div>
+        <div class="data-card">
+          <div class="label">反射角 θ<sub>r</sub></div>
+          <div class="value" id="dThR">30°</div>
+        </div>
+        <div class="data-card">
+          <div class="label">出平面角 φ</div>
+          <div class="value" id="dPhi">0°</div>
+        </div>
+      </div>
+      <div class="formula-box">
+        <div class="formula">
+          ① θ<sub>i</sub> = θ<sub>r</sub> &nbsp;·&nbsp; ② 三線共面
+        </div>
+        <div class="formula-desc">
+          反射定律兩條件 · Reflection has two constraints
+        </div>
+      </div>
+      <div class="coplanarity" id="coplanarityOk">
+        <span class="icon">✓</span>
+        <span>入射線、法線、反射線 — 共面 (coplanar)</span>
+      </div>
+      <div class="coplanarity-violation" id="coplanarityBad" style="display:none">
+        <span class="icon">⚠</span>
+        <span>三線共面被違反<span class="calc" id="deltaCalc">δ = 0°</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+(() => {
+  const container = document.getElementById('stage');
+  const errBox = document.getElementById('errBox');
+
+  let thetaI = 30, phi = 0;
+  let customMode = false;
+  let delta = 0, thetaRprime = 30;
+  let showRefPlane = true, showMirror = true, showNormal = true, showLegal = true;
+
+  const W = () => container.clientWidth;
+  const H = () => container.clientHeight || 540;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d1830);
+  scene.fog = new THREE.FogExp2(0x0d1830, 0.04);
+
+  const camera = new THREE.PerspectiveCamera(45, W()/H(), 0.1, 100);
+  camera.position.set(4.5, 3.2, 5.5);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(W(), H());
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0.6, 0);
+  controls.minDistance = 3;
+  controls.maxDistance = 14;
+  controls.maxPolarAngle = Math.PI * 0.49;
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+  sun.position.set(5, 8, 4);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 0.1;
+  sun.shadow.camera.far = 30;
+  sun.shadow.camera.left = -6; sun.shadow.camera.right = 6;
+  sun.shadow.camera.top = 6; sun.shadow.camera.bottom = -6;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xa0c4ff, 0.35);
+  fill.position.set(-4, 3, -2);
+  scene.add(fill);
+
+  // World axes
+  const axes = new THREE.AxesHelper(1.5);
+  scene.add(axes);
+  // Labels via sprites
+  function makeLabel(text, color) {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 64;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.font = 'bold 44px "Cambria Math", "Times New Roman", serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, 64, 32);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.set(0.55, 0.28, 1);
+    return sp;
+  }
+  const lblX = makeLabel('x', '#ff6677');
+  lblX.position.set(1.75, 0, 0);
+  scene.add(lblX);
+  const lblY = makeLabel('y (normal)', '#66ddff');
+  lblY.position.set(0, 1.75, 0);
+  scene.add(lblY);
+  const lblZ = makeLabel('z', '#88ff88');
+  lblZ.position.set(0, 0, 1.75);
+  scene.add(lblZ);
+
+  // Reference grid on floor
+  const grid = new THREE.GridHelper(8, 16, 0x335577, 0x1c2a44);
+  scene.add(grid);
+
+  // Mirror plane (lies in XY of Geometry → rotate to xz world)
+  const mirrorGroup = new THREE.Group();
+  const mirrorGeo = new THREE.PlaneGeometry(6, 6);
+  const mirrorMat = new THREE.MeshStandardMaterial({
+    color: 0x9bbde6, metalness: 0.88, roughness: 0.18,
+    side: THREE.DoubleSide, envMapIntensity: 1
+  });
+  const mirror = new THREE.Mesh(mirrorGeo, mirrorMat);
+  mirror.rotation.x = -Math.PI / 2;
+  mirror.position.y = 0;
+  mirror.receiveShadow = true;
+  mirrorGroup.add(mirror);
+
+  // Mirror border for visibility
+  const border = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.PlaneGeometry(6, 6)),
+    new THREE.LineBasicMaterial({ color: 0xaaccee, opacity: 0.6, transparent: true })
+  );
+  border.rotation.x = -Math.PI / 2;
+  border.position.y = 0.001;
+  mirrorGroup.add(border);
+  scene.add(mirrorGroup);
+
+  // Origin sphere
+  const originDot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x556677, emissiveIntensity: 0.5 })
+  );
+  scene.add(originDot);
+
+  // Normal arrow (along +y)
+  const normalDir = new THREE.Vector3(0, 1, 0);
+  const normalArrow = new THREE.ArrowHelper(
+    normalDir, new THREE.Vector3(0, 0, 0), 3, 0x00aaff, 0.35, 0.18
+  );
+  scene.add(normalArrow);
+  // "N" label
+  const normalLabel = makeLabel('N', '#00ddff');
+  normalLabel.position.set(0, 3.4, 0);
+  scene.add(normalLabel);
+
+  // Incident arrow (position + direction updated each frame)
+  const incidentArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 3, 0), 3, 0xffaa00, 0.35, 0.18
+  );
+  scene.add(incidentArrow);
+
+  // Reflected arrow
+  const reflectedArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 3, 0xff3344, 0.35, 0.18
+  );
+  scene.add(reflectedArrow);
+
+  // Ghost (legal) reflection arrow — 半透明黃色，僅學生自訂模式顯示
+  const ghostArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 3, 0xfff066, 0.32, 0.16
+  );
+  ghostArrow.line.material.opacity = 0.55;
+  ghostArrow.line.material.transparent = true;
+  ghostArrow.cone.material.opacity = 0.55;
+  ghostArrow.cone.material.transparent = true;
+  ghostArrow.visible = false;
+  scene.add(ghostArrow);
+
+  // Reference plane (incident-normal plane)
+  // 4 vertices: origin, top of normal, incident endpoint, reflected endpoint
+  const refPlaneGeo = new THREE.BufferGeometry();
+  refPlaneGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4 * 3), 3));
+  refPlaneGeo.setIndex([0, 1, 2, 0, 2, 3]);
+  refPlaneGeo.computeVertexNormals();
+  const refPlaneMat = new THREE.MeshBasicMaterial({
+    color: 0x44dd99, opacity: 0.28, transparent: true,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  const refPlane = new THREE.Mesh(refPlaneGeo, refPlaneMat);
+  scene.add(refPlane);
+
+  // Reference plane outline (for clarity)
+  const refOutlineGeo = new THREE.BufferGeometry();
+  refOutlineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(5 * 3), 3));
+  const refOutline = new THREE.Line(
+    refOutlineGeo,
+    new THREE.LineBasicMaterial({ color: 0x44dd99, opacity: 0.85, transparent: true })
+  );
+  scene.add(refOutline);
+
+  // Incident / Reflected angle arcs (2D-style, near origin)
+  function makeArc(color) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(64 * 3), 3));
+    const mat = new THREE.LineBasicMaterial({ color, opacity: 0.85, transparent: true });
+    const line = new THREE.LineLoop(geo, mat);
+    return line;
+  }
+  const arcIncident = makeArc(0xffaa00);
+  const arcReflect = makeArc(0xff3344);
+  scene.add(arcIncident);
+  scene.add(arcReflect);
+
+  function setArcVertices(line, points) {
+    const arr = line.geometry.attributes.position.array;
+    const n = Math.min(points.length, arr.length / 3);
+    for (let i = 0; i < n; i++) {
+      arr[i*3] = points[i].x;
+      arr[i*3+1] = points[i].y;
+      arr[i*3+2] = points[i].z;
+    }
+    line.geometry.setDrawRange(0, n);
+    line.geometry.attributes.position.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+  }
+
+  // Angle labels
+  const angleLabelI = makeLabel('θᵢ', '#ffcc55');
+  const angleLabelR = makeLabel('θᵣ', '#ff6677');
+  scene.add(angleLabelI);
+  scene.add(angleLabelR);
+
+  // ----------------- Update logic -----------------
+  function update() {
+    const r = 3;
+    const rad = d => d * Math.PI / 180;
+    const t = rad(thetaI), p = rad(phi);
+
+    // Incident ray endpoint (above mirror, coming from upper hemisphere)
+    const incEnd = new THREE.Vector3(
+      r * Math.sin(t) * Math.sin(p),
+      r * Math.cos(t),
+      r * Math.sin(t) * Math.cos(p)
+    );
+
+    // Reflection formula: dLegal = d_inc - 2(d_inc·n̂)n̂
+    // d_inc = propagation direction toward origin = -incEnd.normalize()
+    const dInc = incEnd.clone().multiplyScalar(-1).normalize();
+    const nHat = new THREE.Vector3(0, 1, 0);
+    const dot = dInc.dot(nHat);
+    const dLegal = dInc.clone().sub(nHat.clone().multiplyScalar(2 * dot));
+
+    // 學生自訂反射方向（customMode 用）：
+    // 喺 (e_x=dLegal, e_y=p_n, e_z=n) orthogonal basis 入面用球面座標 (θᵣ', δ)
+    // e_x (in-plane)        = dLegal（合法反射方向）
+    // e_y (out-of-plane)    = p_n = cross(n, d_inc).normalize()
+    // e_z (mirror normal)   = n
+    // d_student = sinθ'·cosδ · e_x  +  sinθ'·sinδ · e_y  +  cosθ' · e_z
+    let dStudent;
+    let pN = null;
+    if (customMode) {
+      pN = new THREE.Vector3().crossVectors(nHat, dInc);
+      if (pN.lengthSq() < 1e-8) pN.set(1, 0, 0); else pN.normalize();
+      const tr = rad(thetaRprime), dr = rad(delta);
+      const sx = Math.sin(tr) * Math.cos(dr);
+      const sy = Math.sin(tr) * Math.sin(dr);
+      const sz = Math.cos(tr);
+      dStudent = dLegal.clone().multiplyScalar(sx)
+        .add(pN.clone().multiplyScalar(sy))
+        .add(nHat.clone().multiplyScalar(sz))
+        .normalize();
+    } else {
+      dStudent = dLegal;
+    }
+
+    // Update incident arrow
+    incidentArrow.position.copy(incEnd);
+    incidentArrow.setDirection(dInc);
+    incidentArrow.setLength(r, 0.4, 0.2);
+
+    // Update reflected arrow (學生自訂 or 公式)
+    reflectedArrow.position.set(0, 0, 0);
+    reflectedArrow.setDirection(dStudent);
+    reflectedArrow.setLength(r, 0.4, 0.2);
+
+    // Ghost arrow (公式反射線，custom mode 顯示做對比)
+    ghostArrow.position.set(0, 0, 0);
+    ghostArrow.setDirection(dLegal);
+    ghostArrow.setLength(r, 0.4, 0.2);
+    ghostArrow.visible = customMode && showLegal;
+
+    // Reference plane vertices — 入射面係由 normal + incident 張成，
+    // legal reflection 都會喺入面（公式保證），但 dStudent 可能飛出去。
+    // plane 用 origin, normal_top, incEnd, dLegal 4 點定義。
+    const planeLength = 4;
+    const top = nHat.clone().multiplyScalar(planeLength);
+    const incProj = incEnd.clone().multiplyScalar(planeLength / r);
+    const reflLegalProj = dLegal.clone().multiplyScalar(planeLength);
+
+    const pos = refPlaneGeo.attributes.position.array;
+    [new THREE.Vector3(0, 0, 0), top, incProj, reflLegalProj].forEach((v, i) => {
+      pos[i*3] = v.x; pos[i*3+1] = v.y; pos[i*3+2] = v.z;
+    });
+    refPlaneGeo.attributes.position.needsUpdate = true;
+    refPlaneGeo.computeVertexNormals();
+
+    const outPos = refOutlineGeo.attributes.position.array;
+    const loop = [new THREE.Vector3(0,0,0), top, incProj, reflLegalProj, new THREE.Vector3(0,0,0)];
+    loop.forEach((v, i) => {
+      outPos[i*3] = v.x; outPos[i*3+1] = v.y; outPos[i*3+2] = v.z;
+    });
+    refOutlineGeo.attributes.position.needsUpdate = true;
+    refOutlineGeo.computeBoundingSphere();
+
+    refPlane.visible = showRefPlane;
+    refOutline.visible = showRefPlane;
+    mirrorGroup.visible = showMirror;
+    normalArrow.visible = showNormal;
+    normalLabel.visible = showNormal;
+
+    // Angles for HUD
+    const angleI = Math.acos(Math.max(-1, Math.min(1, incEnd.clone().normalize().dot(nHat)))) * 180 / Math.PI;
+    // θᵣ 數值：custom mode 用學生自訂；standard 用公式
+    const angleRStudent = Math.acos(Math.max(-1, Math.min(1, dStudent.dot(nHat)))) * 180 / Math.PI;
+
+    // Angle arcs
+    const arcR = 0.7;
+    function buildArc(startVec, endVec, nSamples = 32) {
+      const pts = [];
+      const start = startVec.clone().normalize();
+      const end = endVec.clone().normalize();
+      const dot = Math.max(-1, Math.min(1, start.dot(end)));
+      const ang = Math.acos(dot);
+      const axis = new THREE.Vector3().crossVectors(start, end);
+      if (axis.lengthSq() < 1e-6) return [];
+      axis.normalize();
+      const q = new THREE.Quaternion().setFromAxisAngle(axis, ang);
+      const id = new THREE.Quaternion();
+      for (let i = 0; i <= nSamples; i++) {
+        const t = i / nSamples;
+        const tQ = id.clone().slerp(q, t);
+        const v = start.clone().applyQuaternion(tQ);
+        pts.push(v.multiplyScalar(arcR));
+      }
+      return pts;
+    }
+    const incUp = incEnd.clone().normalize();
+    const reflUpStudent = dStudent.clone();
+    setArcVertices(arcIncident, buildArc(nHat, incUp, 32));
+    setArcVertices(arcReflect, buildArc(nHat, reflUpStudent, 32));
+
+    function labelPosOnArc(startVec, endVec, dist = 1.0) {
+      const start = startVec.clone().normalize();
+      const end = endVec.clone().normalize();
+      return start.clone().add(end).normalize().multiplyScalar(dist);
+    }
+    angleLabelI.position.copy(labelPosOnArc(nHat, incUp, 1.15));
+    angleLabelR.position.copy(labelPosOnArc(nHat, reflUpStudent, 1.15));
+
+    // Update HUD numbers
+    document.getElementById('thIVal').textContent = angleI.toFixed(1) + '°';
+    document.getElementById('phiVal').textContent = (phi >= 0 ? '+' : '') + phi.toFixed(0) + '°';
+    document.getElementById('dThI').textContent = angleI.toFixed(1) + '°';
+    document.getElementById('dThR').textContent = angleRStudent.toFixed(1) + '°';
+    document.getElementById('dPhi').textContent = (phi >= 0 ? '+' : '') + phi.toFixed(0) + '°';
+
+    // Custom mode 標籤 / 違反狀態
+    if (customMode) {
+      document.getElementById('deltaVal').textContent = delta.toFixed(0) + '°';
+      document.getElementById('thRPrimeVal').textContent = thetaRprime.toFixed(1) + '°';
+      if (delta > 0.5) {
+        document.getElementById('coplanarityOk').style.display = 'none';
+        document.getElementById('coplanarityBad').style.display = '';
+        document.getElementById('deltaCalc').textContent = 'δ = ' + delta.toFixed(1) + '°';
+      } else {
+        document.getElementById('coplanarityOk').style.display = '';
+        document.getElementById('coplanarityBad').style.display = 'none';
+      }
+    } else {
+      document.getElementById('coplanarityOk').style.display = '';
+      document.getElementById('coplanarityBad').style.display = 'none';
+    }
+  }
+
+  // ----------------- Event handlers -----------------
+  const thISlider = document.getElementById('thISlider');
+  const phiSlider = document.getElementById('phiSlider');
+  thISlider.addEventListener('input', e => {
+    thetaI = parseFloat(e.target.value);
+    update();
+  });
+  phiSlider.addEventListener('input', e => {
+    phi = parseFloat(e.target.value);
+    update();
+  });
+
+  // Mode tabs (standard vs custom)
+  document.querySelectorAll('.mode-tab-v2').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.mode-tab-v2').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      customMode = tab.dataset.mode === 'custom';
+      document.getElementById('customControls').style.display = customMode ? '' : 'none';
+      document.getElementById('hintCustom').style.display = customMode ? '' : 'none';
+      document.getElementById('hintStandard').style.display = customMode ? 'none' : '';
+      document.getElementById('showLegalRow').style.display = customMode ? '' : 'none';
+      update();
+    });
+  });
+
+  // Custom-mode sliders
+  document.getElementById('deltaSlider').addEventListener('input', e => {
+    delta = parseFloat(e.target.value);
+    update();
+  });
+  document.getElementById('thRPrimeSlider').addEventListener('input', e => {
+    thetaRprime = parseFloat(e.target.value);
+    update();
+  });
+
+  document.getElementById('showRefPlane').addEventListener('change', e => {
+    showRefPlane = e.target.checked; update();
+  });
+  document.getElementById('showMirror').addEventListener('change', e => {
+    showMirror = e.target.checked; update();
+  });
+  document.getElementById('showNormal').addEventListener('change', e => {
+    showNormal = e.target.checked; update();
+  });
+  document.getElementById('showLegal').addEventListener('change', e => {
+    showLegal = e.target.checked; update();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    thetaI = 30; phi = 0;
+    thISlider.value = 30; phiSlider.value = 0;
+    delta = 0; thetaRprime = 30;
+    document.getElementById('deltaSlider').value = 0;
+    document.getElementById('thRPrimeSlider').value = 30;
+    controls.autoRotate = false;
+    document.getElementById('animBtn').textContent = '🔄 自動環視';
+    camera.position.set(4.5, 3.2, 5.5);
+    controls.target.set(0, 0.6, 0);
+    update();
+  });
+
+  document.getElementById('topBtn').addEventListener('click', () => {
+    camera.position.set(0.1, 8, 0.1);
+    controls.target.set(0, 0, 0);
+    controls.autoRotate = false;
+    document.getElementById('animBtn').textContent = '🔄 自動環視';
+  });
+
+  document.getElementById('animBtn').addEventListener('click', () => {
+    const btn = document.getElementById('animBtn');
+    if (controls.autoRotate) {
+      controls.autoRotate = false;
+      btn.textContent = '🔄 自動環視';
+    } else {
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.6;
+      btn.textContent = '⏸ 停止環視';
+    }
+  });
+
+  // Resize
+  function resize() {
+    camera.aspect = W() / H();
+    camera.updateProjectionMatrix();
+    renderer.setSize(W(), H());
+  }
+  window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe(container);
+
+  // Render loop
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  update();
+})().catch(err => {
+  console.error('3D scene init failed:', err);
+  const stage = document.getElementById('stage');
+  const errBox = document.getElementById('errBox');
+  errBox.style.display = 'flex';
+  errBox.innerHTML = `
+    <div style="font-size:36px">⚠️</div>
+    <div style="font-size:16px">3D 模組載入失敗</div>
+    <div style="font-size:11px; color:#b8c5d6; max-width:380px; word-break:break-all">${err.message || err}</div>
+    <div style="font-size:11px; color:#b8c5d6">請確認網絡可訪問 unpkg.com</div>
+  `;
+});
+</script>
+</body>
+</html>
