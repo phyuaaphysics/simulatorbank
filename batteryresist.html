@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>電池電動勢與內阻測量實驗</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts Noto Sans TC & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 KaTeX 樣式與腳本以正確渲染數學公式 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+    });"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* 自訂滑桿樣式 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .digital-font {
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <i class="fa-solid fa-car-battery text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-wide">物理實驗室：電池電動勢與內電阻測量</h1>
+                    <p class="text-xs text-slate-400">伏安法測量端電壓 $V$ 與電流 $I$ 關係 ($V = \mathcal{E} - Ir$)</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="toggleTheoryModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm rounded-lg border border-slate-700 transition flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-blue-400"></i> 實驗原理
+                </button>
+                <button onclick="resetExperiment()" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-rotate-right"></i> 重置實驗
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        
+        <!-- 上半部：互動電路與控制面板 + 數據表格 -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- 左側：互動電路模擬器 (佔 7 欄) -->
+            <div class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between">
+                <div>
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-microchip text-blue-600"></i> 實驗電路模擬區
+                        </h2>
+                        <!-- 電池類型選擇 -->
+                        <div class="flex items-center gap-2">
+                            <label for="batterySelect" class="text-xs font-medium text-slate-500">選擇待測電池：</label>
+                            <select id="batterySelect" onchange="changeBattery()" class="text-sm bg-slate-50 border border-slate-300 text-slate-800 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="new_aa">全新鹼性電池 (標準)</option>
+                                <option value="old_aa">舊碳鋅電池 (高內阻)</option>
+                                <option value="li_ion">18650 鋰離子電池 (高電壓/低內阻)</option>
+                                <option value="mystery">未知神秘電池 (自我測試)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- SVG 動態電路圖 -->
+                    <div class="relative bg-slate-900 rounded-xl p-4 overflow-hidden border border-slate-800 shadow-inner">
+                        <svg id="circuitSvg" viewBox="0 0 600 300" class="w-full h-auto select-none">
+                            <!-- 背景網格 -->
+                            <defs>
+                                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" stroke-width="1"/>
+                                </pattern>
+                            </defs>
+                            <rect width="600" height="300" fill="url(#grid)" />
+
+                            <!-- 主迴路導線 -->
+                            <!-- 左側電池到開關 -->
+                            <path d="M 100 90 L 100 50 L 210 50" fill="none" stroke="#94a3b8" stroke-width="3" />
+                            <!-- 開關到電流表 -->
+                            <path d="M 260 50 L 350 50" fill="none" stroke="#94a3b8" stroke-width="3" />
+                            <!-- 電流表到右側變阻器 -->
+                            <path d="M 410 50 L 500 50 L 500 110" fill="none" stroke="#94a3b8" stroke-width="3" />
+                            <!-- 變阻器滑片到底部回電池負極 -->
+                            <path id="wireBottom" d="M 500 210 L 500 250 L 100 250 L 100 210" fill="none" stroke="#94a3b8" stroke-width="3" />
+
+                            <!-- 電壓表並聯導線 (跨接在電池+內阻兩端) -->
+                            <path d="M 100 65 L 40 65 L 40 120" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,2" />
+                            <path d="M 40 180 L 40 235 L 100 235" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,2" />
+                            <!-- 節點圓點 -->
+                            <circle cx="100" cy="65" r="4" fill="#38bdf8" />
+                            <circle cx="100" cy="235" r="4" fill="#38bdf8" />
+
+                            <!-- 電池與內阻虛線框 (代表真實電池) -->
+                            <rect x="70" y="80" width="60" height="140" rx="8" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" />
+                            <text x="138" y="95" fill="#fbbf24" font-size="11" font-weight="bold">真實電池</text>
+
+                            <!-- 理想電動勢 E 符號 -->
+                            <line x1="100" y1="90" x2="100" y2="115" stroke="#cbd5e1" stroke-width="3" />
+                            <line x1="82" y1="115" x2="118" y2="115" stroke="#ef4444" stroke-width="4" /> <!-- 正極長線 -->
+                            <text x="72" y="112" fill="#ef4444" font-size="12" font-weight="bold">+</text>
+                            <line x1="90" y1="125" x2="110" y2="125" stroke="#3b82f6" stroke-width="4" /> <!-- 負極短線 -->
+                            <line x1="100" y1="125" x2="100" y2="145" stroke="#cbd5e1" stroke-width="3" />
+                            <text x="138" y="125" fill="#e2e8f0" font-size="12">電動勢 ℰ</text>
+
+                            <!-- 內阻 r 符號 (鋸齒) -->
+                            <path d="M 100 145 L 100 155 L 92 160 L 108 168 L 92 176 L 108 184 L 100 189 L 100 210" fill="none" stroke="#f59e0b" stroke-width="2.5" />
+                            <text x="138" y="178" fill="#fbbf24" font-size="12">內阻 r</text>
+
+                            <!-- 電壓表 V -->
+                            <circle cx="40" cy="150" r="24" fill="#0f172a" stroke="#38bdf8" stroke-width="3" />
+                            <text x="40" y="156" fill="#38bdf8" font-size="18" font-weight="bold" text-anchor="middle">V</text>
+
+                            <!-- 開關 S (可點擊互動) -->
+                            <g id="switchGroup" class="cursor-pointer" onclick="toggleSwitch()">
+                                <rect x="205" y="25" width="60" height="40" fill="transparent" />
+                                <circle cx="210" cy="50" r="4" fill="#e2e8f0" />
+                                <circle cx="260" cy="50" r="4" fill="#e2e8f0" />
+                                <line id="switchBlade" x1="210" y1="50" x2="255" y2="28" stroke="#10b981" stroke-width="3.5" stroke-linecap="round" style="transition: all 0.2s ease;" />
+                                <text x="235" y="20" fill="#a7f3d0" font-size="11" text-anchor="middle">開關 S (點擊)</text>
+                            </g>
+
+                            <!-- 電流表 A -->
+                            <circle cx="380" cy="50" r="24" fill="#0f172a" stroke="#f43f5e" stroke-width="3" />
+                            <text x="380" y="56" fill="#f43f5e" font-size="18" font-weight="bold" text-anchor="middle">A</text>
+
+                            <!-- 滑動變阻器 R -->
+                            <rect x="488" y="110" width="24" height="100" rx="3" fill="#334155" stroke="#94a3b8" stroke-width="2.5" />
+                            <!-- 變阻器線圈紋理 -->
+                            <line x1="488" y1="125" x2="512" y2="125" stroke="#64748b" stroke-width="1.5" />
+                            <line x1="488" y1="140" x2="512" y2="140" stroke="#64748b" stroke-width="1.5" />
+                            <line x1="488" y1="155" x2="512" y2="155" stroke="#64748b" stroke-width="1.5" />
+                            <line x1="488" y1="170" x2="512" y2="170" stroke="#64748b" stroke-width="1.5" />
+                            <line x1="488" y1="185" x2="512" y2="185" stroke="#64748b" stroke-width="1.5" />
+                            <line x1="488" y1="200" x2="512" y2="200" stroke="#64748b" stroke-width="1.5" />
+                            
+                            <!-- 滑動觸點箭頭 -->
+                            <g id="rheostatSlider" transform="translate(0, 160)">
+                                <path d="M 465 0 L 484 0" stroke="#38bdf8" stroke-width="3" />
+                                <polygon points="486,0 478,-5 478,5" fill="#38bdf8" />
+                                <path d="M 465 0 L 465 90 L 500 90" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="3,3" opacity="0.5"/>
+                            </g>
+                            <text x="522" y="165" fill="#cbd5e1" font-size="12" font-weight="bold">變阻器 R</text>
+
+                            <!-- 電流流動動畫粒子 (通電時顯示) -->
+                            <g id="currentFlow" opacity="0">
+                                <circle r="4" fill="#fbbf24">
+                                    <animateMotion dur="2s" repeatCount="indefinite" path="M 100 90 L 100 50 L 500 50 L 500 250 L 100 250 L 100 210" />
+                                </circle>
+                                <circle r="4" fill="#fbbf24">
+                                    <animateMotion dur="2s" begin="0.66s" repeatCount="indefinite" path="M 100 90 L 100 50 L 500 50 L 500 250 L 100 250 L 100 210" />
+                                </circle>
+                                <circle r="4" fill="#fbbf24">
+                                    <animateMotion dur="2s" begin="1.33s" repeatCount="indefinite" path="M 100 90 L 100 50 L 500 50 L 500 250 L 100 250 L 100 210" />
+                                </circle>
+                            </g>
+                        </svg>
+
+                        <!-- 儀表板即時數位顯示浮動卡 -->
+                        <div class="grid grid-cols-2 gap-3 mt-3">
+                            <div class="bg-slate-800/90 border border-sky-500/30 rounded-xl p-3 flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs text-sky-400 font-medium block">路端電壓 (V)</span>
+                                    <span id="voltDisplay" class="text-2xl sm:text-3xl font-bold text-white digital-font">1.500</span>
+                                    <span class="text-sm text-slate-400 ml-1">V</span>
+                                </div>
+                                <div class="w-10 h-10 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-400 font-bold">V</div>
+                            </div>
+                            <div class="bg-slate-800/90 border border-rose-500/30 rounded-xl p-3 flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs text-rose-400 font-medium block">迴路電流 (I)</span>
+                                    <span id="ampDisplay" class="text-2xl sm:text-3xl font-bold text-white digital-font">0.000</span>
+                                    <span class="text-sm text-slate-400 ml-1">A</span>
+                                </div>
+                                <div class="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 font-bold">A</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 控制操作面板 -->
+                <div class="mt-5 pt-4 border-t border-slate-100 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="flex justify-between text-sm font-medium mb-1.5">
+                                <span class="text-slate-700"><i class="fa-solid fa-sliders text-blue-600 mr-1"></i> 滑動變阻器電阻值 ($R$)</span>
+                                <span id="resistanceLabel" class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">10.0 Ω</span>
+                            </div>
+                            <input type="range" id="resistanceSlider" min="1.0" max="50.0" step="0.5" value="10.0" oninput="updateSimulation()" class="w-full">
+                            <div class="flex justify-between text-xs text-slate-400 mt-1">
+                                <span>1.0 Ω (電流大)</span>
+                                <span>25.0 Ω</span>
+                                <span>50.0 Ω (電流小)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 pt-2">
+                        <button id="switchBtn" onclick="toggleSwitch()" class="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-power-off"></i> <span id="switchBtnText">閉合開關 (通電)</span>
+                        </button>
+                        <button onclick="recordDataPoint()" class="flex-1 sm:flex-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus-circle"></i> 記錄此組數據點
+                        </button>
+                        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none bg-slate-100 px-3 py-2.5 rounded-xl">
+                            <input type="checkbox" id="noiseToggle" checked onchange="updateSimulation()" class="rounded text-blue-600 focus:ring-blue-500">
+                            <span>模擬真實儀表微幅誤差</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：數據記錄與計算結果 (佔 5 欄) -->
+            <div class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                        <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-table-list text-indigo-600"></i> 實驗數據記錄表
+                        </h2>
+                        <span id="pointCountBadge" class="text-xs font-semibold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">已記錄: 0 筆</span>
+                    </div>
+
+                    <!-- 數據表格容器 -->
+                    <div class="overflow-y-auto max-h-64 border border-slate-200 rounded-xl">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-center">#</th>
+                                    <th class="py-2.5 px-3">外電阻 $R$ (Ω)</th>
+                                    <th class="py-2.5 px-3 text-rose-600">電流 $I$ (A)</th>
+                                    <th class="py-2.5 px-3 text-sky-600">電壓 $V$ (V)</th>
+                                    <th class="py-2.5 px-3 text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody" class="divide-y divide-slate-100">
+                                <!-- 預設提示列 -->
+                                <tr id="emptyRow">
+                                    <td colspan="5" class="py-8 text-center text-slate-400 text-xs">
+                                        尚無數據。請調整變阻器並點擊「記錄此組數據點」<br>建議至少記錄 4~5 組不同電流的數據以繪製精確線圖。
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 線性回歸分析結果卡片 -->
+                <div class="mt-5 bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-calculator text-blue-600"></i> 線性回歸分析 ($V = \mathcal{E} - Ir$)
+                        </h3>
+                        <button onclick="revealTruth()" id="revealBtn" class="text-xs text-blue-600 hover:underline font-medium">
+                            檢視真實設定值
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500">實驗測得電動勢 ($\mathcal{E}$)</div>
+                            <div class="text-lg font-bold text-slate-800 mt-0.5"><span id="calcEmf">--</span> <span class="text-xs font-normal text-slate-500">V</span></div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">縱軸截距 ($I=0$)</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500">實驗測得內電阻 ($r$)</div>
+                            <div class="text-lg font-bold text-slate-800 mt-0.5"><span id="calcInternalR">--</span> <span class="text-xs font-normal text-slate-500">Ω</span></div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">斜率絕對值 ($|\Delta V / \Delta I|$)</div>
+                        </div>
+                    </div>
+
+                    <!-- 真實數值對照區 (預設隱藏) -->
+                    <div id="truthBox" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-900 flex justify-between items-center">
+                        <div>
+                            <span class="font-bold">電池出廠真實規格：</span>
+                            電動勢 $\mathcal{E}_0 =$ <span id="trueEmf" class="font-bold">--</span> V，
+                            內阻 $r_0 =$ <span id="trueR" class="font-bold">--</span> Ω
+                        </div>
+                        <span id="errorPercent" class="font-semibold bg-amber-200/60 px-2 py-0.5 rounded">誤差: --%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 下半部：$V-I$ 關係線圖 (全寬響應式 Canvas) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                <div>
+                    <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-emerald-600"></i> 端電壓與電流關係圖 ($V - I$ 特性曲線)
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">系統會根據您記錄的數據點，自動使用最小平方法擬合出最佳直線並外推至縱軸。</p>
+                </div>
+                <div class="flex items-center gap-4 text-xs">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> 實驗測量點</span>
+                    <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 bg-rose-500 inline-block"></span> 線性回歸趨勢線</span>
+                    <span class="flex items-center gap-1.5"><span class="w-4 h-0.5 border-t-2 border-dashed border-rose-400 inline-block"></span> 外推延長線</span>
+                </div>
+            </div>
+
+            <!-- 響應式 Canvas 容器 -->
+            <div id="chartContainer" class="w-full h-80 sm:h-96 relative bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                <canvas id="viChart" class="w-full h-full block"></canvas>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 實驗原理說明彈窗 (Modal) -->
+    <div id="theoryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-flask text-blue-600 mr-2"></i>實驗原理與公式推導</h3>
+                <button onclick="toggleTheoryModal()" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+            </div>
+            <div class="text-sm text-slate-600 space-y-3 leading-relaxed">
+                <p>任何真實電池都具有內電阻 $r$。當電池接上外電阻 $R$ 形成閉合迴路時，根據閉合電路歐姆定律：</p>
+                <div class="bg-slate-100 p-3 rounded-lg text-center text-base text-slate-800">
+                    $$\mathcal{E} = I(R + r) = V + Ir$$
+                </div>
+                <p>整理後可得路端電壓 $V$ 與迴路電流 $I$ 的線性關係式：</p>
+                <div class="bg-blue-50 border border-blue-200 p-3 rounded-lg text-center text-base text-blue-900">
+                    $$V = -r \cdot I + \mathcal{E}$$
+                </div>
+                <ul class="list-disc pl-5 space-y-1.5">
+                    <li><strong>縱軸截距 ($I = 0$ 時)：</strong>當電路開路（電流為零）時，路端電壓等於電池的電動勢 $\mathcal{E}$。</li>
+                    <li><strong>直線斜率 ($k = -r$)：</strong>$V-I$ 圖線為一條向下傾斜的直線，其斜率的絕對值即為電池的內電阻 $r = |\Delta V / \Delta I|$。</li>
+                </ul>
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button onclick="toggleTheoryModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">我瞭解了</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自訂提示訊息 Toast (取代 alert) -->
+    <div id="toastMsg" class="fixed bottom-5 right-5 bg-slate-800 text-white px-4 py-3 rounded-xl shadow-lg text-sm flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i class="fa-solid fa-circle-info text-blue-400"></i>
+        <span id="toastText">提示訊息</span>
+    </div>
+
+    <script>
+        // 電池預設資料庫
+        const BATTERIES = {
+            new_aa: { name: '全新鹼性電池', emf: 1.55, r: 0.45 },
+            old_aa: { name: '舊碳鋅電池', emf: 1.38, r: 3.20 },
+            li_ion: { name: '18650 鋰離子電池', emf: 3.75, r: 0.12 },
+            mystery: { name: '未知神秘電池', emf: 0, r: 0 } // 每次選擇時隨機生成
+        };
+
+        // 實驗狀態變數
+        let state = {
+            batteryType: 'new_aa',
+            trueEmf: 1.55,
+            trueR: 0.45,
+            isSwitchClosed: false,
+            externalR: 10.0,
+            currentV: 1.55,
+            currentI: 0.0,
+            records: [], // 儲存 { id, R, I, V }
+            regEmf: null,
+            regR: null
+        };
+
+        // 初始化未知電池數值
+        function generateMysteryBattery() {
+            BATTERIES.mystery.emf = parseFloat((Math.random() * 3.5 + 1.5).toFixed(2)); // 1.5V ~ 5.0V
+            BATTERIES.mystery.r = parseFloat((Math.random() * 2.5 + 0.3).toFixed(2));   // 0.3Ω ~ 2.8Ω
+        }
+
+        // 顯示自訂 Toast 通知
+        function showToast(msg) {
+            const toast = document.getElementById('toastMsg');
+            document.getElementById('toastText').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // 切換電池種類
+        function changeBattery() {
+            const select = document.getElementById('batterySelect');
+            state.batteryType = select.value;
+            if (state.batteryType === 'mystery') {
+                generateMysteryBattery();
+            }
+            state.trueEmf = BATTERIES[state.batteryType].emf;
+            state.trueR = BATTERIES[state.batteryType].r;
+            
+            // 重置記錄與隱藏真實數值
+            state.records = [];
+            document.getElementById('truthBox').classList.add('hidden');
+            updateSimulation();
+            renderTable();
+            drawChart();
+            showToast(`已更換為：${BATTERIES[state.batteryType].name}`);
+        }
+
+        // 切換開關狀態
+        function toggleSwitch() {
+            state.isSwitchClosed = !state.isSwitchClosed;
+            const blade = document.getElementById('switchBlade');
+            const flow = document.getElementById('currentFlow');
+            const btn = document.getElementById('switchBtn');
+            const btnText = document.getElementById('switchBtnText');
+
+            if (state.isSwitchClosed) {
+                blade.setAttribute('x2', '260');
+                blade.setAttribute('y2', '50');
+                flow.setAttribute('opacity', '1');
+                btn.classList.replace('bg-emerald-600', 'bg-amber-600');
+                btn.classList.replace('hover:bg-emerald-700', 'hover:bg-amber-700');
+                btnText.textContent = '斷開開關 (開路)';
+            } else {
+                blade.setAttribute('x2', '255');
+                blade.setAttribute('y2', '28');
+                flow.setAttribute('opacity', '0');
+                btn.classList.replace('bg-amber-600', 'bg-emerald-600');
+                btn.classList.replace('hover:bg-amber-700', 'hover:bg-emerald-700');
+                btnText.textContent = '閉合開關 (通電)';
+            }
+            updateSimulation();
+        }
+
+        // 更新物理計算與 SVG 動畫位置
+        function updateSimulation() {
+            const slider = document.getElementById('resistanceSlider');
+            state.externalR = parseFloat(slider.value);
+            document.getElementById('resistanceLabel').textContent = `${state.externalR.toFixed(1)} Ω`;
+
+            // 更新 SVG 滑動變阻器箭頭位置 (電阻 1~50 對應 y 座標 115~205)
+            const ratio = (state.externalR - 1.0) / (50.0 - 1.0);
+            const sliderY = 115 + ratio * 90;
+            const sliderGroup = document.getElementById('rheostatSlider');
+            sliderGroup.setAttribute('transform', `translate(0, ${sliderY})`);
+
+            const addNoise = document.getElementById('noiseToggle').checked;
+            
+            if (!state.isSwitchClosed) {
+                // 開路狀態：I = 0, V = E (考慮理想高內阻電壓表)
+                let noiseV = addNoise ? (Math.random() - 0.5) * 0.006 : 0;
+                state.currentI = 0;
+                state.currentV = Math.max(0, state.trueEmf + noiseV);
+            } else {
+                // 閉合迴路：I = E / (R + r), V = I * R
+                let idealI = state.trueEmf / (state.externalR + state.trueR);
+                let idealV = idealI * state.externalR;
+
+                let noiseI = addNoise ? (Math.random() - 0.5) * 0.004 : 0;
+                let noiseV = addNoise ? (Math.random() - 0.5) * 0.006 : 0;
+
+                state.currentI = Math.max(0.001, idealI + noiseI);
+                state.currentV = Math.max(0, idealV + noiseV);
+            }
+
+            // 更新數位儀表顯示
+            document.getElementById('voltDisplay').textContent = state.currentV.toFixed(3);
+            document.getElementById('ampDisplay').textContent = state.currentI.toFixed(3);
+        }
+
+        // 記錄目前數據點
+        function recordDataPoint() {
+            // 檢查是否重複相同電流
+            const isDuplicate = state.records.some(rec => Math.abs(rec.I - state.currentI) < 0.002 && Math.abs(rec.V - state.currentV) < 0.002);
+            if (isDuplicate) {
+                showToast('此數據點已記錄過，請調整變阻器改變電流後再記錄！');
+                return;
+            }
+
+            state.records.push({
+                id: Date.now(),
+                R: state.isSwitchClosed ? state.externalR.toFixed(1) : '∞ (開路)',
+                I: parseFloat(state.currentI.toFixed(3)),
+                V: parseFloat(state.currentV.toFixed(3))
+            });
+
+            // 依照電流大小排序方便檢視
+            state.records.sort((a, b) => a.I - b.I);
+
+            renderTable();
+            calculateRegression();
+            drawChart();
+            showToast('成功記錄一組實驗數據！');
+        }
+
+        // 刪除單筆數據
+        function deleteRecord(id) {
+            state.records = state.records.filter(rec => rec.id !== id);
+            renderTable();
+            calculateRegression();
+            drawChart();
+        }
+
+        // 渲染數據表格
+        function renderTable() {
+            const tbody = document.getElementById('dataTableBody');
+            const badge = document.getElementById('pointCountBadge');
+            badge.textContent = `已記錄: ${state.records.length} 筆`;
+
+            if (state.records.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="emptyRow">
+                        <td colspan="5" class="py-8 text-center text-slate-400 text-xs">
+                            尚無數據。請調整變阻器並點擊「記錄此組數據點」<br>建議至少記錄 4~5 組不同電流的數據以繪製精確線圖。
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = state.records.map((rec, index) => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="py-2 px-3 text-center text-slate-400 font-medium">${index + 1}</td>
+                    <td class="py-2 px-3 font-mono text-slate-700">${rec.R}</td>
+                    <td class="py-2 px-3 font-mono font-semibold text-rose-600">${rec.I.toFixed(3)}</td>
+                    <td class="py-2 px-3 font-mono font-semibold text-sky-600">${rec.V.toFixed(3)}</td>
+                    <td class="py-2 px-3 text-center">
+                        <button onclick="deleteRecord(${rec.id})" class="text-slate-400 hover:text-rose-600 transition p-1" title="刪除此筆">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // 最小平方法線性回歸計算 V = m*I + b
+        function calculateRegression() {
+            const emfEl = document.getElementById('calcEmf');
+            const rEl = document.getElementById('calcInternalR');
+
+            if (state.records.length < 2) {
+                state.regEmf = null;
+                state.regR = null;
+                emfEl.textContent = '--';
+                rEl.textContent = '--';
+                return;
+            }
+
+            const n = state.records.length;
+            let sumI = 0, sumV = 0, sumIV = 0, sumII = 0;
+
+            state.records.forEach(p => {
+                sumI += p.I;
+                sumV += p.V;
+                sumIV += p.I * p.V;
+                sumII += p.I * p.I;
+            });
+
+            const denominator = (n * sumII - sumI * sumI);
+            if (Math.abs(denominator) < 1e-9) {
+                state.regEmf = null;
+                state.regR = null;
+                return;
+            }
+
+            const slope = (n * sumIV - sumI * sumV) / denominator; // m = -r
+            const intercept = (sumV - slope * sumI) / n;          // b = E
+
+            state.regEmf = intercept;
+            state.regR = -slope;
+
+            emfEl.textContent = state.regEmf.toFixed(3);
+            rEl.textContent = Math.max(0, state.regR).toFixed(3);
+
+            updateTruthComparison();
+        }
+
+        // 顯示真實電池規格與誤差比較
+        function revealTruth() {
+            const box = document.getElementById('truthBox');
+            box.classList.toggle('hidden');
+            document.getElementById('trueEmf').textContent = state.trueEmf.toFixed(2);
+            document.getElementById('trueR').textContent = state.trueR.toFixed(2);
+            updateTruthComparison();
+        }
+
+        function updateTruthComparison() {
+            const errBadge = document.getElementById('errorPercent');
+            if (state.regR !== null && state.trueR > 0) {
+                const err = Math.abs((state.regR - state.trueR) / state.trueR) * 100;
+                errBadge.textContent = `內阻誤差: ${err.toFixed(1)}%`;
+            } else {
+                errBadge.textContent = `需至少 2 筆數據計算誤差`;
+            }
+        }
+
+        // 繪製 V-I 關係圖表 (響應式高解析度 Canvas)
+        function drawChart() {
+            const container = document.getElementById('chartContainer');
+            const canvas = document.getElementById('viChart');
+            const ctx = canvas.getContext('2d');
+
+            // 處理 Retina 螢幕高 DPI 縮放
+            const dpr = window.devicePixelRatio || 1;
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+
+            // 清空畫布
+            ctx.clearRect(0, 0, width, height);
+
+            // 圖表邊距設定
+            const padLeft = 65;
+            const padRight = 35;
+            const padTop = 30;
+            const padBottom = 50;
+            const plotW = width - padLeft - padRight;
+            const plotH = height - padTop - padBottom;
+
+            // 決定座標軸動態範圍
+            let maxI = 1.0;
+            let maxV = Math.ceil(state.trueEmf * 1.25 * 2) / 2; // 依據電池電動勢調整縱軸上限
+
+            if (state.records.length > 0) {
+                const dataMaxI = Math.max(...state.records.map(r => r.I));
+                const dataMaxV = Math.max(...state.records.map(r => r.V));
+                maxI = Math.max(0.5, Math.ceil(dataMaxI * 1.25 * 10) / 10);
+                maxV = Math.max(maxV, Math.ceil(dataMaxV * 1.2 * 2) / 2);
+                if (state.regEmf && state.regEmf > maxV) {
+                    maxV = Math.ceil(state.regEmf * 1.15 * 2) / 2;
+                }
+            }
+
+            // 座標轉換輔助函式
+            const toX = (iVal) => padLeft + (iVal / maxI) * plotW;
+            const toY = (vVal) => padTop + plotH - (vVal / maxV) * plotH;
+
+            // 1. 繪製網格線與刻度
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '12px Inter, sans-serif';
+
+            // 水平網格 (電壓 V)
+            const ySteps = 5;
+            for (let s = 0; s <= ySteps; s++) {
+                const v = (maxV / ySteps) * s;
+                const y = toY(v);
+                ctx.beginPath();
+                ctx.moveTo(padLeft, y);
+                ctx.lineTo(padLeft + plotW, y);
+                ctx.stroke();
+
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(v.toFixed(2), padLeft - 10, y);
+            }
+
+            // 垂直網格 (電流 I)
+            const xSteps = 5;
+            for (let s = 0; s <= xSteps; s++) {
+                const i = (maxI / xSteps) * s;
+                const x = toX(i);
+                ctx.beginPath();
+                ctx.moveTo(x, padTop);
+                ctx.lineTo(x, padTop + plotH);
+                ctx.stroke();
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText(i.toFixed(2), x, padTop + plotH + 10);
+            }
+
+            // 2. 繪製主座標軸
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(padLeft, padTop);
+            ctx.lineTo(padLeft, padTop + plotH);
+            ctx.lineTo(padLeft + plotW, padTop + plotH);
+            ctx.stroke();
+
+            // 座標軸標題
+            ctx.fillStyle = '#1e293b';
+            ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('迴路電流 I (A)', padLeft + plotW / 2, height - 15);
+
+            ctx.save();
+            ctx.translate(18, padTop + plotH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('路端電壓 V (V)', 0, 0);
+            ctx.restore();
+
+            // 3. 若有至少 2 個點，繪製線性回歸線與外推線
+            if (state.regEmf !== null && state.regR !== null) {
+                const minDataI = Math.min(...state.records.map(r => r.I));
+                const maxDataI = Math.max(...state.records.map(r => r.I));
+
+                // 計算回歸線在 I=0 處的 V 值 (縱軸截距)
+                const vAtZero = state.regEmf;
+                // 計算回歸線與橫軸交點 (短路電流 I_short = E / r) 或圖表右邊界
+                let endI = maxI;
+                if (state.regR > 0) {
+                    const shortCircuitI = state.regEmf / state.regR;
+                    endI = Math.min(maxI, shortCircuitI);
+                }
+
+                // 繪製外推虛線 (從 I=0 到最小測量電流點)
+                if (minDataI > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#fb7185';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(toX(0), toY(vAtZero));
+                    ctx.lineTo(toX(minDataI), toY(state.regEmf - state.regR * minDataI));
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // 繪製測量區間實線 (從 minDataI 到 maxDataI)
+                ctx.strokeStyle = '#e11d48';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(toX(minDataI), toY(state.regEmf - state.regR * minDataI));
+                ctx.lineTo(toX(maxDataI), toY(state.regEmf - state.regR * maxDataI));
+                ctx.stroke();
+
+                // 繪製向右延伸虛線 (從 maxDataI 到 endI)
+                if (endI > maxDataI) {
+                    ctx.save();
+                    ctx.strokeStyle = '#fb7185';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(toX(maxDataI), toY(state.regEmf - state.regR * maxDataI));
+                    ctx.lineTo(toX(endI), toY(Math.max(0, state.regEmf - state.regR * endI)));
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // 標註縱軸截距點 (電動勢 E)
+                if (vAtZero >= 0 && vAtZero <= maxV) {
+                    const interceptY = toY(vAtZero);
+                    ctx.fillStyle = '#e11d48';
+                    ctx.beginPath();
+                    ctx.arc(padLeft, interceptY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#be123c';
+                    ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`ℰ ≈ ${vAtZero.toFixed(3)} V`, padLeft + 10, interceptY - 8);
+                }
+            }
+
+            // 4. 繪製實驗數據散點
+            state.records.forEach(pt => {
+                const px = toX(pt.I);
+                const py = toY(pt.V);
+
+                // 外圈光暈
+                ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+                ctx.beginPath();
+                ctx.arc(px, py, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 實心圓點
+                ctx.fillStyle = '#2563eb';
+                ctx.beginPath();
+                ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 白色中心點
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 若無數據時的中央提示文字
+            if (state.records.length === 0) {
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '14px "Noto Sans TC", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('請在上方電路操作並記錄數據點，圖表將即時自動繪製', padLeft + plotW / 2, padTop + plotH / 2);
+            }
+        }
+
+        // 切換原理說明視窗
+        function toggleTheoryModal() {
+            const modal = document.getElementById('theoryModal');
+            modal.classList.toggle('hidden');
+        }
+
+        // 重置整個實驗
+        function resetExperiment() {
+            state.records = [];
+            state.regEmf = null;
+            state.regR = null;
+            if (state.isSwitchClosed) {
+                toggleSwitch();
+            }
+            document.getElementById('resistanceSlider').value = 10.0;
+            document.getElementById('truthBox').classList.add('hidden');
+            updateSimulation();
+            renderTable();
+            calculateRegression();
+            drawChart();
+            showToast('實驗已重置');
+        }
+
+        // 視窗大小改變時重新繪製自適應 Canvas
+        window.addEventListener('resize', drawChart);
+
+        // 頁面載入完成初始化
+        window.onload = function() {
+            generateMysteryBattery();
+            updateSimulation();
+            drawChart();
+        };
+    </script>
+</body>
+</html>
