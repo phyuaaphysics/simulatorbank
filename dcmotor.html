@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>直流電動機（馬達）互動學習實驗室</title>
+  <style>
+    :root {
+      --bg-grouped: #F2F2F7;
+      --bg-card: #FFFFFF;
+      --bg-sub: #F8F9FC;
+      --bg-pill: #E5E5EA;
+      --separator: rgba(60, 60, 67, 0.12);
+      --text: #1C1C1E;
+      --text-sub: #6E6E73;
+      --text-muted: #8E8E93;
+      --blue: #007AFF;
+      --green: #34C759;
+      --red: #FF3B30;
+      --orange: #FF9500;
+      --indigo: #5856D6;
+      --purple: #AF52DE;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.045), 0 1px 3px rgba(0, 0, 0, 0.03);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: var(--bg-grouped);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 18px;
+      line-height: 1.55;
+    }
+
+    .app {
+      max-width: 1320px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* 頂部導覽 */
+    header {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--separator);
+      border-radius: var(--radius);
+      padding: 16px 22px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand h1 {
+      font-size: 1.38rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(0, 122, 255, 0.1);
+      color: var(--blue);
+    }
+
+    .brand p {
+      font-size: 0.86rem;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* iOS 分頁切換器 */
+    .tabs {
+      display: inline-flex;
+      background: var(--bg-pill);
+      padding: 3px;
+      border-radius: 11px;
+      gap: 3px;
+    }
+
+    .tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: #FFFFFF;
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .view-panel {
+      display: none;
+    }
+
+    .view-panel.active {
+      display: block;
+      animation: fadeIn 0.2s ease;
+    }
+
+    /* 網格與卡片 */
+    .sim-grid {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 1040px) {
+      .sim-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--separator);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 畫布區域 */
+    .canvas-wrap {
+      width: 100%;
+      aspect-ratio: 16 / 10.2;
+      min-height: 330px;
+      background: #F8FAFD;
+      border: 1px solid var(--separator);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 零件互動導覽列 */
+    .parts-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .part-pill {
+      background: var(--bg-grouped);
+      border: 1.5px solid transparent;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .part-pill:hover {
+      border-color: var(--blue);
+    }
+
+    .part-pill.active {
+      background: rgba(0, 122, 255, 0.12);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .part-info-box {
+      background: var(--bg-sub);
+      border: 1px solid var(--separator);
+      border-left: 4px solid var(--blue);
+      border-radius: 11px;
+      padding: 11px 14px;
+      font-size: 0.86rem;
+      color: var(--text);
+    }
+
+    /* 控制項群組 */
+    .ctrl-box {
+      background: var(--bg-sub);
+      border: 1px solid var(--separator);
+      border-radius: 13px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .ctrl-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+
+    .btn-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+
+    .choice-btn {
+      background: #FFFFFF;
+      border: 1.5px solid var(--separator);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .choice-btn.active {
+      background: rgba(0, 122, 255, 0.1);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .ios-btn {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .ios-btn:hover { opacity: 0.88; }
+
+    .ios-btn.secondary {
+      background: var(--bg-pill);
+      color: var(--text);
+    }
+
+    .ios-btn.orange {
+      background: var(--orange);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
+    .toggle-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toggle-item input {
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
+    /* 即時物理狀態看板 */
+    .live-board {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .live-cell {
+      background: #FFFFFF;
+      border: 1px solid var(--separator);
+      border-radius: 10px;
+      padding: 9px 11px;
+    }
+
+    .live-cell .k {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+    }
+
+    .live-cell .v {
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin-top: 2px;
+      color: var(--text);
+    }
+
+    /* 分頁 2：原理圖解 */
+    .guide-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 860px) {
+      .guide-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .rule-card {
+      background: var(--bg-card);
+      border: 1px solid var(--separator);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rule-card h3 {
+      font-size: 1.02rem;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+
+    .step-item {
+      background: var(--bg-sub);
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--separator);
+    }
+
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    .compare-table th, .compare-table td {
+      border: 1px solid var(--separator);
+      padding: 9px 10px;
+      text-align: left;
+    }
+
+    .compare-table th {
+      background: var(--bg-grouped);
+      color: var(--text);
+    }
+
+    /* 分頁 3：隨堂測驗 */
+    .quiz-wrap {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    .quiz-progress {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      color: var(--text-sub);
+      font-weight: 600;
+    }
+
+    .quiz-q {
+      font-size: 1.08rem;
+      font-weight: 700;
+      background: var(--bg-sub);
+      border: 1px solid var(--separator);
+      border-left: 4px solid var(--blue);
+      padding: 14px 16px;
+      border-radius: 12px;
+    }
+
+    .quiz-opts {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 9px;
+    }
+
+    .q-opt-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      background: var(--bg-sub);
+      border: 1.5px solid var(--separator);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.94rem;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .q-opt-btn:hover:not(:disabled) {
+      border-color: var(--blue);
+      background: rgba(0, 122, 255, 0.06);
+    }
+
+    .q-opt-btn:disabled { cursor: default; }
+
+    .q-key {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--separator);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--blue);
+      flex-shrink: 0;
+    }
+
+    .q-opt-btn.correct {
+      background: rgba(52, 199, 89, 0.13);
+      border-color: var(--green);
+      color: #135D29;
+    }
+
+    .q-opt-btn.correct .q-key {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+    }
+
+    .q-opt-btn.wrong {
+      background: rgba(255, 59, 48, 0.1);
+      border-color: var(--red);
+      color: #9E1C16;
+    }
+
+    .q-opt-btn.wrong .q-key {
+      background: var(--red);
+      color: #fff;
+      border-color: var(--red);
+    }
+
+    .q-feedback {
+      display: none;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+    }
+
+    .q-feedback.show {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .q-feedback.ok {
+      background: rgba(52, 199, 89, 0.1);
+      border: 1px solid rgba(52, 199, 89, 0.35);
+      color: #14532D;
+    }
+
+    .q-feedback.bad {
+      background: rgba(255, 59, 48, 0.08);
+      border: 1px solid rgba(255, 59, 48, 0.3);
+      color: #7F1D1D;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- 頂部導覽 -->
+    <header>
+      <div class="brand">
+        <h1>
+          直流電動機（直流馬達）學習實驗室
+          <span class="badge">電與磁・圖解互動</span>
+        </h1>
+        <p>從圖片認識直流馬達構造、換向器原理、弗萊明左手定則與考題實戰。</p>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" data-tab="sim">互動模擬室</button>
+        <button class="tab-btn" data-tab="guide">核心原理圖解</button>
+        <button class="tab-btn" data-tab="quiz">隨堂測驗 (8題)</button>
+      </div>
+    </header>
+
+    <!-- 分頁 1：互動模擬室 -->
+    <section id="tab-sim" class="view-panel active">
+      <div class="sim-grid">
+        <!-- 左側：立體動畫畫布 + 零件點擊解說 -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">⚙️ 直流電動機 3D 運轉模擬（對應原圖視角）</div>
+            <span class="badge" id="angleBadge">轉角 θ = 0°</span>
+          </div>
+
+          <div class="canvas-wrap">
+            <canvas id="motorCanvas"></canvas>
+          </div>
+
+          <div>
+            <div style="font-size: 0.78rem; color: var(--text-sub); margin-bottom: 6px; font-weight: 600;">
+              👆 點擊下方裝置零件，認識各構造名稱與功能：
+            </div>
+            <div class="parts-bar" id="partsBar">
+              <button class="part-pill active" data-part="all">全部構造</button>
+              <button class="part-pill" data-part="magnet">1. 磁鐵（磁場）</button>
+              <button class="part-pill" data-part="coil">2. 線圈 ABCD</button>
+              <button class="part-pill" data-part="commutator">3. 半圓形換向器</button>
+              <button class="part-pill" data-part="brush">4. 固定電刷</button>
+              <button class="part-pill" data-part="battery">5. 電池組（電源）</button>
+            </div>
+          </div>
+
+          <div class="part-info-box" id="partInfoBox">
+            <strong>整體裝置：</strong>這是一部<strong>直流電動機（直流馬達）</strong>，利用「通電導線在磁場中受磁力作用」的原理，將<strong>電能轉換為力學能（動能）</strong>。
+          </div>
+        </div>
+
+        <!-- 右側：控制面板與即時受力判讀 -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">🎛️ 實驗參數控制</div>
+            <button class="ios-btn secondary" id="resetAngleBtn">重設至圖示位置 (0°)</button>
+          </div>
+
+          <!-- 電源與播放控制 -->
+          <div class="ctrl-box">
+            <div class="ctrl-row">
+              <span>運轉控制</span>
+              <span id="spinStateText" style="color: var(--blue);">運轉中</span>
+            </div>
+            <div class="action-row">
+              <button class="ios-btn" id="playPauseBtn">⏸ 暫停</button>
+              <button class="ios-btn secondary" id="stepBtn">單步 +15°</button>
+              <button class="ios-btn secondary" id="snap90Btn">跳至垂直處 (90°)</button>
+              <button class="ios-btn secondary" id="snap180Btn">跳至轉半圈 (180°)</button>
+            </div>
+            <div class="ctrl-row" style="margin-top: 4px;">
+              <span>轉速 / 電壓大小</span>
+              <span id="speedLabel">正常</span>
+            </div>
+            <input type="range" id="speedSlider" min="0.2" max="2.5" step="0.1" value="1.0" />
+          </div>
+
+          <!-- 磁極與電池正負切換 -->
+          <div class="ctrl-box">
+            <div class="ctrl-row"><span>磁鐵極性（決定磁場 B 方向）</span></div>
+            <div class="btn-pair">
+              <button class="choice-btn active" id="magNS">左 N 極、右 S 極 (B →)</button>
+              <button class="choice-btn" id="magSN">左 S 極、右 N 極 (B ←)</button>
+            </div>
+
+            <div class="ctrl-row" style="margin-top: 4px;"><span>電池組正負極接法（原圖為左−右+）</span></div>
+            <div class="btn-pair">
+              <button class="choice-btn active" id="batRightPlus">左 − 、右 +（同原圖）</button>
+              <button class="choice-btn" id="batLeftPlus">左 + 、右 −（反接）</button>
+            </div>
+          </div>
+
+          <!-- 顯示選項與對照實驗 -->
+          <div class="ctrl-box">
+            <div class="toggle-list">
+              <label class="toggle-item"><input type="checkbox" id="chkField" checked /> 顯示磁場線 B (藍)</label>
+              <label class="toggle-item"><input type="checkbox" id="chkCurrent" checked /> 顯示電流方向 I (紅)</label>
+              <label class="toggle-item"><input type="checkbox" id="chkForce" checked /> 顯示磁力方向 F (綠)</label>
+              <label class="toggle-item"><input type="checkbox" id="chkNoComm" /> 假設拿掉換向器（對比）</label>
+            </div>
+          </div>
+
+          <!-- 即時物理判讀面板 -->
+          <div class="ctrl-box" style="background: rgba(0, 122, 255, 0.05); border-color: rgba(0, 122, 255, 0.2);">
+            <div class="ctrl-row" style="color: var(--blue);"><span>🔍 即時受力與轉動分析</span></div>
+            <div class="live-board">
+              <div class="live-cell">
+                <div class="k">線圈內電流路徑</div>
+                <div class="v" id="liveCurrentPath" style="color: var(--red);">D → C → B → A</div>
+              </div>
+              <div class="live-cell">
+                <div class="k">整體轉動方向</div>
+                <div class="v" id="liveRotation" style="color: var(--blue);">順時針旋轉 ↻</div>
+              </div>
+              <div class="live-cell">
+                <div class="k">AB 邊受力</div>
+                <div class="v" id="liveForceAB" style="color: #1B873F;">向上 ↑</div>
+              </div>
+              <div class="live-cell">
+                <div class="k">CD 邊受力</div>
+                <div class="v" id="liveForceCD" style="color: #1B873F;">向下 ↓</div>
+              </div>
+            </div>
+            <div id="liveNote" style="font-size: 0.82rem; color: var(--text-sub); margin-top: 2px;">
+              目前線圈處於水平位置，磁力矩最大！
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 分頁 2：核心原理圖解 -->
+    <section id="tab-guide" class="view-panel">
+      <div class="guide-grid">
+        <div class="rule-card">
+          <h3>✋ 1. 如何判斷線圈受力方向？</h3>
+          <div class="step-list">
+            <div class="step-item">
+              <strong>方法 A：弗萊明左手定則（左電動機）</strong><br>
+              伸出<strong>左手</strong>，使拇指、食指、中指兩兩垂直：<br>
+              • <strong>食指</strong> ＝ 磁場方向（由 <strong>N 極指向 S 極</strong>）<br>
+              • <strong>中指</strong> ＝ 傳統電流方向（由電池 <strong>＋ 極出發</strong>）<br>
+              • <strong>大拇指</strong> ＝ 導線受磁力方向（<strong>F</strong>）
+            </div>
+            <div class="step-item">
+              <strong>方法 B：右手開掌定則（台灣課綱常用）</strong><br>
+              伸出<strong>右手</strong>掌平攤：<br>
+              • <strong>四指</strong> ＝ 磁場方向（N → S）<br>
+              • <strong>大拇指</strong> ＝ 電流方向（I）<br>
+              • <strong>掌心推向</strong> ＝ 導線受力方向（F）
+            </div>
+            <div class="step-item">
+              <strong>原圖實戰判讀（假設左 N 右 S）：</strong><br>
+              由圖中電池「左−右＋」可知電流由 <strong>D→C→B→A</strong>。<br>
+              • <strong>CD 邊</strong>（在右側）：電流向內、磁場向右 → 受力<strong>向下 ↓</strong>。<br>
+              • <strong>AB 邊</strong>（在左側）：電流向外、磁場向右 → 受力<strong>向上 ↑</strong>。<br>
+              • <strong>BC 與 AD 邊</strong>：電流與磁場平行（或垂直轉軸方向抵銷），不產生轉動力矩。
+            </div>
+          </div>
+        </div>
+
+        <div class="rule-card">
+          <h3>🔄 2. 為什麼一定要「半圓形換向器」？</h3>
+          <div class="step-list">
+            <div class="step-item">
+              <strong>關鍵問題：</strong>如果沒有換向器，當線圈轉過 90°（垂直位置）後，AB 邊跑到右邊、CD 邊跑到左邊，若電流不反向，原本「向上」的邊會變成把線圈拉回來，導致線圈只會在 90° 附近<strong>來回擺動而無法持續旋轉</strong>！
+            </div>
+            <div class="step-item">
+              <strong>換向器的作用：</strong>兩個半圓形金屬環隨線圈一起轉動，而兩側的電刷固定不動。<strong>每轉半圈（180°）</strong>，換向器與電刷的接觸就會互換一次，讓線圈 <strong>ABCD 內部的電流自動反向</strong>！
+            </div>
+            <div class="step-item">
+              <strong>垂直位置 (90° / 270°) 會卡住嗎？</strong><br>
+              當線圈轉到垂直磁場（90°）時，電刷剛好對準兩個半圓環之間的<strong>絕緣縫隙</strong>，瞬間斷電（電流為 0、磁力為 0），但線圈會靠著轉動的<strong>慣性</strong>順利越過垂直位置，隨即接通反向電流繼續同向旋轉！
+            </div>
+          </div>
+        </div>
+
+        <div class="rule-card">
+          <h3>⚡ 3. 如何加快轉速與改變轉向？</h3>
+          <div class="step-list">
+            <div class="step-item">
+              <strong>加快電動機轉速的方法：</strong><br>
+              1. <strong>增加電流大小</strong>（串聯更多電池，提高電壓）。<br>
+              2. <strong>增強磁場</strong>（換用磁性更強的磁鐵）。<br>
+              3. <strong>增加線圈匝數</strong>（繞更多圈導線）或放入軟鐵心。
+            </div>
+            <div class="step-item">
+              <strong>改變轉動方向的方法（二選一）：</strong><br>
+              • 只將<strong>電池正負極反接</strong>（電流反向）→ 轉向反轉。<br>
+              • 只將<strong>磁鐵 N、S 極對調</strong>（磁場反向）→ 轉向反轉。<br>
+              • <strong>陷阱題：</strong>若「電池反接」<strong>同時</strong>「磁極對調」→ 負負得正，<strong>轉向不變</strong>！
+            </div>
+          </div>
+        </div>
+
+        <div class="rule-card">
+          <h3>🆚 4. 直流電動機 vs. 交流／直流發電機比較</h3>
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>比較項目</th>
+                <th>直流電動機（本圖）</th>
+                <th>發電機</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>外部連接</strong></td>
+                <td>接有<strong>電池組（電源）</strong></td>
+                <td>接有<strong>檢流計／燈泡</strong>（無電池）</td>
+              </tr>
+              <tr>
+                <td><strong>能量轉換</strong></td>
+                <td><strong>電能 → 力學能（動能）</strong></td>
+                <td><strong>力學能（動能） → 電能</strong></td>
+              </tr>
+              <tr>
+                <td><strong>物理原理</strong></td>
+                <td>電流的磁效應（載流導線在磁場受力）</td>
+                <td>電磁感應（磁通量變化產生感應電流）</td>
+              </tr>
+              <tr>
+                <td><strong>判斷定則</strong></td>
+                <td>弗萊明<strong>左手</strong>定則／右手開掌</td>
+                <td>弗萊明<strong>右手</strong>定則／冷次定律</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 分頁 3：隨堂測驗 -->
+    <section id="tab-quiz" class="view-panel">
+      <div class="quiz-wrap">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">📝 圖解隨堂測驗（依原圖設計）</div>
+            <button class="ios-btn secondary" id="restartQuizBtn">重新測驗</button>
+          </div>
+
+          <div class="quiz-progress">
+            <span id="qProgText">第 1 / 8 題</span>
+            <span id="qScoreText" style="color: var(--blue);">目前得分：0 分</span>
+          </div>
+
+          <div class="quiz-q" id="quizQuestionText">載入題目中...</div>
+
+          <div class="quiz-opts" id="quizOptions"></div>
+
+          <div class="q-feedback" id="quizFeedback">
+            <strong id="qFeedbackTitle"></strong>
+            <div id="qFeedbackExplain"></div>
+            <button class="ios-btn" id="qNextBtn" style="align-self: flex-end;">下一題 →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      // ========================
+      // 標籤頁切換
+      // ========================
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      const viewPanels = document.querySelectorAll('.view-panel');
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          viewPanels.forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+          if (btn.dataset.tab === 'sim') drawMotor();
+        });
+      });
+
+      // ========================
+      // 零件知識庫
+      // ========================
+      const PART_INFO = {
+        all: '<strong>整體裝置：</strong>這是一部<strong>直流電動機（直流馬達）</strong>，利用「通電導線在磁場中受磁力作用」的原理，將<strong>電能轉換為力學能（動能）</strong>。',
+        magnet: '<strong>1. 永久磁鐵（左、右兩側）：</strong>提供均勻磁場 <strong>B</strong>，磁力線方向由 <strong>N 極指向 S 極</strong>。磁性越強，線圈受力與轉速越大。',
+        coil: '<strong>2. 電樞線圈 ABCD：</strong>通電後，與磁場垂直的 <strong>AB 邊與 CD 邊</strong>會受方向相反的磁力，形成力偶矩使線圈繞虛線轉軸轉動。',
+        commutator: '<strong>3. 半圓形換向器（集電半環）：</strong>固定在線圈軸上隨線圈一起轉動。<strong>每轉半圈 (180°) 自動將線圈內的電流方向反轉一次</strong>，使線圈能持續朝同一方向轉動。',
+        brush: '<strong>4. 固定電刷（兩側方塊，常為碳刷）：</strong>固定不動並連接外部電池導線，透過輕觸旋轉中的換向器，將電流穩定傳入線圈中。',
+        battery: '<strong>5. 電池組（直流電源）：</strong>提供直流電，傳統電流由 <strong>＋ 極</strong>流出、經電刷與換向器進入線圈，再回到 <strong>－ 極</strong>。電池電壓越高或反接，會改變轉速或轉向。'
+      };
+
+      // ========================
+      // 模擬狀態
+      // ========================
+      const sim = {
+        thetaDeg: 0,      // 0 = 水平位置(如原圖: AB在左, CD在右); 正值為順時針旋轉
+        playing: true,
+        speed: 1.0,
+        magDir: 1,        // 1: 左N右S (B向右); -1: 左S右N (B向左)
+        batRightPlus: true, // true: 左−右+ (同原圖); false: 左+右−
+        showField: true,
+        showCurrent: true,
+        showForce: true,
+        noCommutator: false,
+        highlightPart: 'all',
+        omega: 0          // 角速度(用在無換向器時的擺動模擬)
+      };
+
+      // DOM 控制項
+      const canvas = document.getElementById('motorCanvas');
+      const ctx = canvas.getContext('2d');
+      const angleBadge = document.getElementById('angleBadge');
+      const partInfoBox = document.getElementById('partInfoBox');
+      const spinStateText = document.getElementById('spinStateText');
+      const playPauseBtn = document.getElementById('playPauseBtn');
+      const speedSlider = document.getElementById('speedSlider');
+      const speedLabel = document.getElementById('speedLabel');
+
+      const magNS = document.getElementById('magNS');
+      const magSN = document.getElementById('magSN');
+      const batRightPlus = document.getElementById('batRightPlus');
+      const batLeftPlus = document.getElementById('batLeftPlus');
+
+      const chkField = document.getElementById('chkField');
+      const chkCurrent = document.getElementById('chkCurrent');
+      const chkForce = document.getElementById('chkForce');
+      const chkNoComm = document.getElementById('chkNoComm');
+
+      const liveCurrentPath = document.getElementById('liveCurrentPath');
+      const liveRotation = document.getElementById('liveRotation');
+      const liveForceAB = document.getElementById('liveForceAB');
+      const liveForceCD = document.getElementById('liveForceCD');
+      const liveNote = document.getElementById('liveNote');
+
+      // 零件點擊
+      document.querySelectorAll('.part-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.part-pill').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          sim.highlightPart = btn.dataset.part;
+          partInfoBox.innerHTML = PART_INFO[sim.highlightPart];
+          drawMotor();
+        });
+      });
+
+      // 物理計算：給定角度 thetaDeg，計算電流方向與各邊受力
+      // 定義: thetaDeg = 0 時，AB在左(-R,0)，CD在右(+R,0)；theta 增加為順時針旋轉
+      function computePhysicsAt(deg) {
+        const norm = ((deg % 360) + 360) % 360;
+        const rad = (norm * Math.PI) / 180;
+
+        // 在垂直位置 90° 與 270° (±6° 內) 換向器縫隙經過電刷，無電流
+        const nearGap = !sim.noCommutator && (Math.abs(norm - 90) < 6 || Math.abs(norm - 270) < 6);
+
+        // 右電刷極性 (+1 表示右電刷為正極)
+        const rightBrushSign = sim.batRightPlus ? 1 : -1;
+
+        // 換向器接觸判定：
+        // norm 在 [0, 90) 或 (270, 360) 時，CD在右、AB在左 -> 右電刷接 CD、左電刷接 AB
+        // norm 在 (90, 270) 時，AB轉到右邊、CD轉到左邊 -> 右電刷接 AB、左電刷接 CD
+        const cdOnRight = (norm < 90 || norm > 270);
+
+        let currentInCoil = 0; // +1 代表 D->C->B->A，-1 代表 A->B->C->D
+        if (nearGap) {
+          currentInCoil = 0;
+        } else if (sim.noCommutator) {
+          // 假設沒有換向器（滑環）：始終右側接 CD，左側接 AB
+          currentInCoil = rightBrushSign;
+        } else {
+          currentInCoil = cdOnRight ? rightBrushSign : -rightBrushSign;
+        }
+
+        // AB邊的深度電流方向(向內為 -z，向外為 +z):
+        // 若 currentInCoil = +1 (D->C->B->A)，則 BA 段是向外(+z)，DC 段是向內(-z)
+        // F = I * L x B，B = +magDir * x_hat
+        // AB邊: (+currentInCoil * z_hat) x (magDir * x_hat) = (currentInCoil * magDir) * y_hat
+        const forceAB_y = currentInCoil * sim.magDir; // +1 向上, -1 向下
+        const forceCD_y = -forceAB_y;
+
+        // 計算實際轉矩方向 (順時針力矩 > 0):
+        // AB 位於 (-R cos(rad), +R sin(rad))，力在 y 方向 (0, forceAB_y)
+        // r x F 的 z 分量: x * Fy - y * Fx = (-R cos(rad)) * forceAB_y
+        // 而 CW 轉動代表 AB在左(x<0)時向上(+y) -> x*Fy < 0 -> 所以順時針力矩 = +cos(rad) * forceAB_y
+        const torqueSign = Math.cos(rad) * forceAB_y;
+
+        return { norm, rad, nearGap, cdOnRight, currentInCoil, forceAB_y, forceCD_y, torqueSign };
+      }
+
+      function updateLivePanel(phys) {
+        angleBadge.textContent = `轉角 θ = ${Math.round(phys.norm)}°`;
+
+        if (phys.nearGap) {
+          liveCurrentPath.textContent = '縫隙斷電（瞬間 I = 0）';
+          liveForceAB.textContent = '無磁力 (0)';
+          liveForceCD.textContent = '無磁力 (0)';
+          liveNote.textContent = '⚡ 電刷正經過換向器縫隙，瞬間斷電，線圈靠慣性繼續越過垂直位置！';
+        } else {
+          liveCurrentPath.textContent = phys.currentInCoil > 0 ? 'D → C → B → A' : 'A → B → C → D';
+          liveForceAB.textContent = phys.forceAB_y > 0 ? '向上 ↑' : '向下 ↓';
+          liveForceCD.textContent = phys.forceCD_y > 0 ? '向上 ↑' : '向下 ↓';
+
+          if (sim.noCommutator) {
+            liveNote.textContent = '⚠️ 拿掉換向器後，過了 90° 電流沒有反轉，磁力會把線圈拉回來回擺動！';
+          } else if (Math.abs(phys.norm) < 10 || Math.abs(phys.norm - 180) < 10 || Math.abs(phys.norm - 360) < 10) {
+            liveNote.textContent = '💪 線圈正處於水平位置，磁力臂最長，轉動力矩達到最大！';
+          } else {
+            liveNote.textContent = '🔄 半圓形換向器每轉 180° 自動反轉線圈內電流，維持同方向持續旋轉。';
+          }
+        }
+
+        if (sim.noCommutator) {
+          liveRotation.textContent = '在 90° 附近來回擺動 ⇄';
+          liveRotation.style.color = 'var(--orange)';
+        } else {
+          // 判斷整體穩定轉向
+          const rightSign = sim.batRightPlus ? 1 : -1;
+          const cw = (rightSign * sim.magDir) > 0;
+          liveRotation.textContent = cw ? '順時針持續旋轉 ↻' : '逆時針持續旋轉 ↺';
+          liveRotation.style.color = 'var(--blue)';
+        }
+      }
+
+      // 3D -> 2D 投影（精準還原原圖視角：軸線由左下往右上延伸）
+      function makeProjector(w, h) {
+        const cx = w * 0.45;
+        const cy = h * 0.50;
+        const scale = Math.min(w / 620, h / 390);
+        // depth z in [-1 (近端/換向器前), +1 (遠端 BC)]
+        const depthDX = 110 * scale;
+        const depthDY = -72 * scale;
+        return (x, y, z) => ({
+          x: cx + x * scale + z * depthDX,
+          y: cy - y * scale + z * depthDY
+        });
+      }
+
+      function drawArrow2D(x1, y1, x2, y2, color, width = 2.6, headSize = 8) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        const ang = Math.atan2(y2 - y1, x2 - x1);
+        ctx.translate(x2, y2);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-headSize, -headSize * 0.52);
+        ctx.lineTo(-headSize, headSize * 0.52);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawMidArrow(p1, p2, color, width = 2.6) {
+        const mx = (p1.x + p2.x) / 2;
+        const my = (p1.y + p2.y) / 2;
+        const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.translate(mx, my);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(7, 0);
+        ctx.lineTo(-5, -4.5);
+        ctx.lineTo(-5, 4.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawMagnetSlab(proj, xInner, isLeft, poleText, highlight) {
+        const thickness = 26;
+        const xOuter = isLeft ? xInner - thickness : xInner + thickness;
+        const yTop = 58, yBot = -58;
+        const zFront = -0.35, zBack = 1.15;
+
+        const fTL = proj(xOuter, yTop, zFront);
+        const fTR = proj(xInner, yTop, zFront);
+        const fBR = proj(xInner, yBot, zFront);
+        const fBL = proj(xOuter, yBot, zFront);
+
+        const bTL = proj(xOuter, yTop, zBack);
+        const bTR = proj(xInner, yTop, zBack);
+        const bBR = proj(xInner, yBot, zBack);
+
+        const isN = poleText === 'N';
+        const baseFill = isN ? 'rgba(255, 59, 48, 0.14)' : 'rgba(0, 122, 255, 0.14)';
+        const sideFill = isN ? 'rgba(255, 59, 48, 0.22)' : 'rgba(0, 122, 255, 0.22)';
+        const strokeCol = highlight ? '#FF9500' : (isN ? '#FF3B30' : '#007AFF');
+
+        ctx.save();
+        ctx.lineWidth = highlight ? 2.6 : 1.6;
+        ctx.strokeStyle = strokeCol;
+
+        // 頂面
+        ctx.fillStyle = baseFill;
+        ctx.beginPath();
+        ctx.moveTo(fTL.x, fTL.y); ctx.lineTo(fTR.x, fTR.y);
+        ctx.lineTo(bTR.x, bTR.y); ctx.lineTo(bTL.x, bTL.y);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        // 側面（若在左側繪製右內側面；若在右側繪製左內側面/外側面）
+        ctx.fillStyle = sideFill;
+        ctx.beginPath();
+        if (isLeft) {
+          ctx.moveTo(fTR.x, fTR.y); ctx.lineTo(bTR.x, bTR.y);
+          ctx.lineTo(bBR.x, bBR.y); ctx.lineTo(fBR.x, fBR.y);
+        } else {
+          ctx.moveTo(fTR.x, fTR.y); ctx.lineTo(bTR.x, bTR.y);
+          ctx.lineTo(bBR.x, bBR.y); ctx.lineTo(fBR.x, fBR.y);
+        }
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        // 前面
+        ctx.fillStyle = baseFill;
+        ctx.beginPath();
+        ctx.moveTo(fTL.x, fTL.y); ctx.lineTo(fTR.x, fTR.y);
+        ctx.lineTo(fBR.x, fBR.y); ctx.lineTo(fBL.x, fBL.y);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+
+        // 極性大字 N / S
+        const center = proj((xInner + xOuter) / 2, 0, zFront);
+        ctx.fillStyle = isN ? '#D7261E' : '#0062CC';
+        ctx.font = '800 20px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(poleText, center.x, center.y);
+        ctx.restore();
+      }
+
+      function drawMotor() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = Math.max(10, Math.floor(rect.width));
+        const h = Math.max(10, Math.floor(rect.height));
+        if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+          canvas.width = w * dpr;
+          canvas.height = h * dpr;
+        }
+
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h);
+
+        const proj = makeProjector(w, h);
+        const phys = computePhysicsAt(sim.thetaDeg);
+        updateLivePanel(phys);
+
+        const hl = sim.highlightPart;
+        const leftPole = sim.magDir > 0 ? 'N' : 'S';
+        const rightPole = sim.magDir > 0 ? 'S' : 'N';
+
+        // 1. 先畫背景磁場線 B
+        if (sim.showField) {
+          for (let row = -1; row <= 1; row++) {
+            for (let dz = 0.05; dz <= 0.85; dz += 0.4) {
+              const y = row * 34;
+              const p1 = proj(-118, y, dz);
+              const p2 = proj(118, y, dz);
+              ctx.save();
+              ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = 'rgba(0, 122, 255, 0.25)';
+              ctx.lineWidth = 1.4;
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+              ctx.restore();
+              if (sim.magDir > 0) drawMidArrow(p1, p2, 'rgba(0, 122, 255, 0.45)');
+              else drawMidArrow(p2, p1, 'rgba(0, 122, 255, 0.45)');
+            }
+          }
+        }
+
+        // 2. 左磁鐵
+        drawMagnetSlab(proj, -135, true, leftPole, hl === 'magnet');
+
+        // 3. 虛線轉軸
+        const axFront = proj(0, 0, -1.05);
+        const axBack = proj(0, 0, 1.35);
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = '#94A3B8';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(axFront.x, axFront.y);
+        ctx.lineTo(axBack.x, axBack.y);
+        ctx.stroke();
+        ctx.restore();
+
+        // 4. 線圈 ABCD 3D 座標
+        // theta = 0 時: AB 在 (-R, 0), CD 在 (+R, 0); 順時針旋轉 => AB=(-R cos, +R sin), CD=(+R cos, -R sin)
+        const R = 76;
+        const cosT = Math.cos(phys.rad);
+        const sinT = Math.sin(phys.rad);
+
+        const xAB = -R * cosT, yAB = R * sinT;
+        const xCD = R * cosT, yCD = -R * sinT;
+
+        const A = proj(xAB, yAB, 0.0);
+        const B = proj(xAB, yAB, 1.0);
+        const C = proj(xCD, yCD, 1.0);
+        const D = proj(xCD, yCD, 0.0);
+
+        // 連接至換向器的引出腳 (靠近轉軸)
+        const legOff = 18;
+        const legAx = -legOff * cosT, legAy = legOff * sinT;
+        const legDx = legOff * cosT, legDy = -legOff * sinT;
+        const A_in = proj(legAx, legAy, 0.0);
+        const D_in = proj(legDx, legDy, 0.0);
+        const A_comm = proj(legAx, legAy, -0.52);
+        const D_comm = proj(legDx, legDy, -0.52);
+
+        // 繪製線圈
+        ctx.save();
+        ctx.strokeStyle = hl === 'coil' ? '#FF9500' : '#1C1C1E';
+        ctx.lineWidth = hl === 'coil' ? 4.2 : 3.2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(A_comm.x, A_comm.y);
+        ctx.lineTo(A_in.x, A_in.y);
+        ctx.lineTo(A.x, A.y);
+        ctx.lineTo(B.x, B.y);
+        ctx.lineTo(C.x, C.y);
+        ctx.lineTo(D.x, D.y);
+        ctx.lineTo(D_in.x, D_in.y);
+        ctx.lineTo(D_comm.x, D_comm.y);
+        ctx.stroke();
+        ctx.restore();
+
+        // 電流箭頭沿線圈流動
+        if (sim.showCurrent && phys.currentInCoil !== 0) {
+          const col = '#FF3B30';
+          if (phys.currentInCoil > 0) {
+            // D -> C -> B -> A
+            drawMidArrow(D, C, col);
+            drawMidArrow(C, B, col);
+            drawMidArrow(B, A, col);
+          } else {
+            // A -> B -> C -> D
+            drawMidArrow(A, B, col);
+            drawMidArrow(B, C, col);
+            drawMidArrow(C, D, col);
+          }
+        }
+
+        // 磁力箭頭 F (畫在 AB 邊中點與 CD 邊中點)
+        if (sim.showForce && phys.currentInCoil !== 0) {
+          const midAB_3d = { x: xAB, y: yAB, z: 0.5 };
+          const midCD_3d = { x: xCD, y: yCD, z: 0.5 };
+          const fLen = 46;
+
+          const pAB0 = proj(midAB_3d.x, midAB_3d.y, midAB_3d.z);
+          const pAB1 = proj(midAB_3d.x, midAB_3d.y + phys.forceAB_y * fLen, midAB_3d.z);
+          drawArrow2D(pAB0.x, pAB0.y, pAB1.x, pAB1.y, '#28A745', 3.4, 9);
+
+          const pCD0 = proj(midCD_3d.x, midCD_3d.y, midCD_3d.z);
+          const pCD1 = proj(midCD_3d.x, midCD_3d.y + phys.forceCD_y * fLen, midCD_3d.z);
+          drawArrow2D(pCD0.x, pCD0.y, pCD1.x, pCD1.y, '#28A745', 3.4, 9);
+
+          ctx.fillStyle = '#1B873F';
+          ctx.font = '700 12px -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('F', pAB1.x, pAB1.y + (phys.forceAB_y > 0 ? -9 : 13));
+          ctx.fillText('F', pCD1.x, pCD1.y + (phys.forceCD_y > 0 ? -9 : 13));
+        }
+
+        // A, B, C, D 頂點標籤
+        const lblPts = [
+          { t: 'A', p: A, dx: -13, dy: 4 },
+          { t: 'B', p: B, dx: -13, dy: -6 },
+          { t: 'C', p: C, dx: 13, dy: -6 },
+          { t: 'D', p: D, dx: 13, dy: 4 }
+        ];
+        ctx.fillStyle = '#1C1C1E';
+        ctx.font = 'italic 700 14px Georgia, serif';
+        ctx.textAlign = 'center';
+        lblPts.forEach(item => ctx.fillText(item.t, item.p.x + item.dx, item.p.y + item.dy));
+
+        // 5. 右磁鐵（畫在線圈之後呈現立體遮擋感）
+        drawMagnetSlab(proj, 135, false, rightPole, hl === 'magnet');
+
+        // 6. 換向器（兩片半圓環，或拿掉換向器時的兩個滑環）
+        const commCenter = proj(0, 0, -0.58);
+        const commR = 23 * Math.min(w / 620, h / 390);
+        const rotRad = phys.rad; // 隨線圈順時針轉動
+
+        ctx.save();
+        ctx.translate(commCenter.x, commCenter.y);
+
+        if (sim.noCommutator) {
+          // 完整圓形滑環
+          ctx.strokeStyle = hl === 'commutator' ? '#FF9500' : '#64748B';
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.arc(0, 0, commR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = '#475569';
+          ctx.font = '600 10px -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('完整滑環(無換向)', 0, commR + 14);
+        } else {
+          // 半圓環 1 (連接 A 端，初始在左側: pi/2 到 3pi/2)
+          const gap = 0.24;
+          const aStart = Math.PI / 2 + gap + rotRad;
+          const aEnd = (3 * Math.PI) / 2 - gap + rotRad;
+          // 半圓環 2 (連接 D 端，初始在右側: -pi/2 到 pi/2)
+          const dStart = -Math.PI / 2 + gap + rotRad;
+          const dEnd = Math.PI / 2 - gap + rotRad;
+
+          ctx.lineWidth = 7;
+          ctx.lineCap = 'butt';
+          ctx.strokeStyle = hl === 'commutator' ? '#FF9500' : '#475569';
+          ctx.beginPath();
+          ctx.arc(0, 0, commR, aStart, aEnd);
+          ctx.stroke();
+
+          ctx.strokeStyle = hl === 'commutator' ? '#FFB340' : '#94A3B8';
+          ctx.beginPath();
+          ctx.arc(0, 0, commR, dStart, dEnd);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // 7. 兩側固定電刷
+        const brushW = 24 * Math.min(w / 620, h / 390);
+        const brushH = 14 * Math.min(w / 620, h / 390);
+        const leftBrushX = commCenter.x - commR - brushW - 2;
+        const rightBrushX = commCenter.x + commR + 2;
+        const brushY = commCenter.y - brushH / 2;
+
+        ctx.save();
+        ctx.fillStyle = hl === 'brush' ? 'rgba(255, 149, 0, 0.25)' : '#CBD5E1';
+        ctx.strokeStyle = hl === 'brush' ? '#FF9500' : '#475569';
+        ctx.lineWidth = hl === 'brush' ? 2.4 : 1.6;
+        ctx.fillRect(leftBrushX, brushY, brushW, brushH);
+        ctx.strokeRect(leftBrushX, brushY, brushW, brushH);
+        ctx.fillRect(rightBrushX, brushY, brushW, brushH);
+        ctx.strokeRect(rightBrushX, brushY, brushW, brushH);
+        ctx.restore();
+
+        // 8. 外部導線與電池組（底部）
+        const batW = 76, batH = 34;
+        const batX = commCenter.x - batW / 2;
+        const batY = h - 54;
+        const leftTermX = batX + 18;
+        const rightTermX = batX + batW - 18;
+        const termY = batY - 5;
+
+        // 外部導線
+        ctx.save();
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        // 左電刷 -> 電池左端
+        ctx.moveTo(leftBrushX, commCenter.y);
+        ctx.lineTo(leftBrushX - 18, commCenter.y);
+        ctx.lineTo(leftBrushX - 18, batY + 12);
+        ctx.lineTo(leftTermX, batY + 12);
+        ctx.lineTo(leftTermX, termY);
+        // 右電刷 -> 電池右端
+        ctx.moveTo(rightBrushX + brushW, commCenter.y);
+        ctx.lineTo(rightBrushX + brushW + 18, commCenter.y);
+        ctx.lineTo(rightBrushX + brushW + 18, batY + 12);
+        ctx.lineTo(rightTermX, batY + 12);
+        ctx.lineTo(rightTermX, termY);
+        ctx.stroke();
+
+        // 電池本體
+        ctx.fillStyle = hl === 'battery' ? 'rgba(255, 149, 0, 0.18)' : '#FFFFFF';
+        ctx.strokeStyle = hl === 'battery' ? '#FF9500' : '#334155';
+        ctx.lineWidth = hl === 'battery' ? 2.5 : 1.8;
+        ctx.beginPath();
+        ctx.roundRect(batX, batY, batW, batH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // 兩端電極柱
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(leftTermX - 4, termY, 8, 5);
+        ctx.fillRect(rightTermX - 4, termY, 8, 5);
+
+        // + / - 符號
+        ctx.font = '800 14px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        const lSym = sim.batRightPlus ? '−' : '+';
+        const rSym = sim.batRightPlus ? '+' : '−';
+        ctx.fillStyle = lSym === '+' ? '#FF3B30' : '#007AFF';
+        ctx.fillText(lSym, leftTermX, batY + 17);
+        ctx.fillStyle = rSym === '+' ? '#FF3B30' : '#007AFF';
+        ctx.fillText(rSym, rightTermX, batY + 17);
+
+        ctx.fillStyle = '#1C1C1E';
+        ctx.font = '700 12px -apple-system, "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('電池組', batX + batW + 10, batY + 21);
+        ctx.restore();
+
+        ctx.restore();
+      }
+
+      // ========================
+      // 動畫迴圈
+      // ========================
+      let lastT = performance.now();
+      function tick(now) {
+        const dt = Math.min(0.05, (now - lastT) / 1000);
+        lastT = now;
+
+        if (sim.playing) {
+          if (sim.noCommutator) {
+            // 物理擺動模擬：力矩把線圈拉向 90° (垂直平衡點)，帶有阻尼
+            const phys = computePhysicsAt(sim.thetaDeg);
+            const alpha = phys.torqueSign * 260 * sim.speed;
+            sim.omega = (sim.omega + alpha * dt) * 0.985;
+            sim.thetaDeg += sim.omega * dt;
+          } else {
+            const rightSign = sim.batRightPlus ? 1 : -1;
+            const dir = (rightSign * sim.magDir) > 0 ? 1 : -1;
+            sim.thetaDeg += dir * 95 * sim.speed * dt;
+          }
+          drawMotor();
+        }
+        requestAnimationFrame(tick);
+      }
+
+      // 控制項事件
+      playPauseBtn.addEventListener('click', () => {
+        sim.playing = !sim.playing;
+        playPauseBtn.textContent = sim.playing ? '⏸ 暫停' : '▶ 播放';
+        spinStateText.textContent = sim.playing ? '運轉中' : '已暫停';
+        spinStateText.style.color = sim.playing ? 'var(--blue)' : 'var(--text-sub)';
+      });
+
+      document.getElementById('stepBtn').addEventListener('click', () => {
+        sim.playing = false;
+        playPauseBtn.textContent = '▶ 播放';
+        spinStateText.textContent = '單步觀察';
+        const rightSign = sim.batRightPlus ? 1 : -1;
+        const dir = (rightSign * sim.magDir) > 0 ? 1 : -1;
+        sim.thetaDeg += dir * 15;
+        drawMotor();
+      });
+
+      document.getElementById('snap90Btn').addEventListener('click', () => {
+        sim.playing = false;
+        playPauseBtn.textContent = '▶ 播放';
+        spinStateText.textContent = '定格：90° 垂直';
+        sim.thetaDeg = 90;
+        drawMotor();
+      });
+
+      document.getElementById('snap180Btn').addEventListener('click', () => {
+        sim.playing = false;
+        playPauseBtn.textContent = '▶ 播放';
+        spinStateText.textContent = '定格：180° 半圈';
+        sim.thetaDeg = 180;
+        drawMotor();
+      });
+
+      document.getElementById('resetAngleBtn').addEventListener('click', () => {
+        sim.thetaDeg = 0;
+        sim.omega = 0;
+        drawMotor();
+      });
+
+      speedSlider.addEventListener('input', (e) => {
+        sim.speed = parseFloat(e.target.value);
+        speedLabel.textContent = sim.speed < 0.7 ? '慢速' : sim.speed > 1.5 ? '高速' : '正常';
+      });
+
+      magNS.addEventListener('click', () => {
+        sim.magDir = 1;
+        magNS.classList.add('active');
+        magSN.classList.remove('active');
+        drawMotor();
+      });
+
+      magSN.addEventListener('click', () => {
+        sim.magDir = -1;
+        magSN.classList.add('active');
+        magNS.classList.remove('active');
+        drawMotor();
+      });
+
+      batRightPlus.addEventListener('click', () => {
+        sim.batRightPlus = true;
+        batRightPlus.classList.add('active');
+        batLeftPlus.classList.remove('active');
+        drawMotor();
+      });
+
+      batLeftPlus.addEventListener('click', () => {
+        sim.batRightPlus = false;
+        batLeftPlus.classList.add('active');
+        batRightPlus.classList.remove('active');
+        drawMotor();
+      });
+
+      chkField.addEventListener('change', (e) => { sim.showField = e.target.checked; drawMotor(); });
+      chkCurrent.addEventListener('change', (e) => { sim.showCurrent = e.target.checked; drawMotor(); });
+      chkForce.addEventListener('change', (e) => { sim.showForce = e.target.checked; drawMotor(); });
+      chkNoComm.addEventListener('change', (e) => {
+        sim.noCommutator = e.target.checked;
+        sim.omega = 40;
+        drawMotor();
+      });
+
+      window.addEventListener('resize', drawMotor);
+
+      // ========================
+      // 分頁 3：隨堂測驗題庫 (8題)
+      // ========================
+      const QUIZ_BANK = [
+        {
+          q: '附圖中的實驗裝置接有「電池組」，請問此裝置屬於下列何者？其主要能量轉換為何？',
+          opts: [
+            '直流電動機，將電能轉換為力學能（動能）',
+            '直流發電機，將力學能轉換為電能',
+            '交流電動機，將磁能轉換為熱能',
+            '變壓器，用來改變電壓大小'
+          ],
+          ans: 0,
+          exp: '裝置連接了「電池組」提供直流電源，使通電線圈在磁場中受磁力轉動，因此是「直流電動機（馬達）」，將電能轉換成動能。'
+        },
+        {
+          q: '依附圖所示電池組的正負極接法（左−、右＋），線圈在圖示水平位置時，線圈內的傳統電流方向為何？',
+          opts: [
+            'A → B → C → D',
+            'D → C → B → A',
+            'A → D → C → B',
+            '線圈內不會有電流通過'
+          ],
+          ans: 1,
+          exp: '傳統電流由電池「＋」極（右側）流出，經右側電刷與半圓形換向器進入 D 端，依序流經 D → C → B → A，再經左側半圓環與電刷回到電池「－」極。'
+        },
+        {
+          q: '承上題，若左側磁鐵為 N 極、右側為 S 極（磁場向右），在圖示位置時，CD 邊與 AB 邊所受磁力方向各為何？',
+          opts: [
+            'CD 邊向上，AB 邊向下（逆時針轉動）',
+            'CD 邊向下，AB 邊向上（順時針轉動）',
+            'CD 邊與 AB 邊同時向上',
+            'CD 邊與 AB 邊皆不受力'
+          ],
+          ans: 1,
+          exp: '利用弗萊明左手定則（磁場向右）：CD 邊電流向內，受力「向下」；AB 邊電流向外，受力「向上」，使線圈呈「順時針」方向轉動！'
+        },
+        {
+          q: '圖中連接在線圈兩端、隨線圈一起旋轉的「兩個半圓形金屬環」稱為什麼？它的主要功能為何？',
+          opts: [
+            '電刷；用來增加線圈的摩擦力',
+            '換向器（集電半環）；每轉半圈使線圈內電流方向反轉，維持同向旋轉',
+            '電阻器；用來限制電流大小避免燒壞',
+            '保險絲；電流過大時自動熔斷'
+          ],
+          ans: 1,
+          exp: '半圓形金屬環稱為「換向器（集電半環）」。它每轉 180° 就會交換與電刷的接觸，使線圈內部的電流反向，確保兩側受力方向固定，讓馬達能持續同向旋轉。'
+        },
+        {
+          q: '若將圖中的「兩個半圓形換向器」拆掉，改換成「兩個完整的圓形滑環」，通電後線圈會發生什麼現象？',
+          opts: [
+            '轉速變得更快且更平穩',
+            '線圈會立即反方向高速旋轉',
+            '線圈在垂直位置附近來回擺動，無法持續朝同一方向轉動',
+            '線圈會完全靜止不動'
+          ],
+          ans: 2,
+          exp: '沒有換向器時，線圈越過垂直位置（90°）後電流不會反轉，磁力會把它拉回原處，因此只能來回擺動後停在垂直位置。'
+        },
+        {
+          q: '當線圈剛好轉到「垂直磁場方向（90°）」的瞬間，電刷正好對準換向器的縫隙，此時為什麼線圈不會停下來？',
+          opts: [
+            '因為電池會在縫隙處產生閃電繼續推動',
+            '因為線圈靠轉動的「慣性」越過垂直位置後再重新通電',
+            '因為磁場在 90° 時會變得無限大',
+            '因為電刷會跟著線圈一起轉動'
+          ],
+          ans: 1,
+          exp: '在垂直位置（90°）瞬間斷電且力矩為零，但線圈會利用轉動的「慣性」繼續越過這個死點，緊接著換向器接通反向電流並繼續旋轉。'
+        },
+        {
+          q: '下列哪一項操作，會讓這部直流電動機的「轉動方向相反」？',
+          opts: [
+            '增加電池組的電池顆數（提高電壓）',
+            '換用磁性更強的永久磁鐵',
+            '同時將電池正負極反接，並將左右磁鐵 N、S 極對調',
+            '只將電池正負極反接（磁鐵不動）'
+          ],
+          ans: 3,
+          exp: '增加電壓或磁鐵強度只會讓「轉速變快」；若「同時」反轉電流與磁場會負負得正（轉向不變）；唯有「單獨」反轉電流或「單獨」對調磁極，才會改變轉向！'
+        },
+        {
+          q: '圖中與換向器緊密接觸、但本身「固定不動」的左右兩塊方塊構造是什麼？',
+          opts: [
+            '軟鐵心',
+            '電刷（通常為碳刷）',
+            '電磁鐵',
+            '滑動變阻器'
+          ],
+          ans: 1,
+          exp: '固定在兩側、連接外部導線並輕觸換向器的方塊稱為「電刷」（常用石墨製成碳刷，兼具導電與潤滑效果）。'
+        }
+      ];
+
+      const quizState = {
+        idx: 0,
+        score: 0,
+        answered: false
+      };
+
+      const qProgText = document.getElementById('qProgText');
+      const qScoreText = document.getElementById('qScoreText');
+      const quizQuestionText = document.getElementById('quizQuestionText');
+      const quizOptions = document.getElementById('quizOptions');
+      const quizFeedback = document.getElementById('quizFeedback');
+      const qFeedbackTitle = document.getElementById('qFeedbackTitle');
+      const qFeedbackExplain = document.getElementById('qFeedbackExplain');
+      const qNextBtn = document.getElementById('qNextBtn');
+
+      function renderQuiz() {
+        const item = QUIZ_BANK[quizState.idx];
+        quizState.answered = false;
+        qProgText.textContent = `第 ${quizState.idx + 1} / ${QUIZ_BANK.length} 題`;
+        qScoreText.textContent = `目前得分：${quizState.score} 分`;
+        quizQuestionText.textContent = item.q;
+        quizFeedback.className = 'q-feedback';
+
+        const keys = ['A', 'B', 'C', 'D'];
+        quizOptions.innerHTML = '';
+        item.opts.forEach((txt, i) => {
+          const btn = document.createElement('button');
+          btn.className = 'q-opt-btn';
+          btn.innerHTML = `<span class="q-key">${keys[i]}</span><span>${txt}</span>`;
+          btn.addEventListener('click', () => {
+            if (quizState.answered) return;
+            quizState.answered = true;
+            const ok = i === item.ans;
+            if (ok) quizState.score += 1;
+
+            quizOptions.querySelectorAll('.q-opt-btn').forEach((b, j) => {
+              b.disabled = true;
+              if (j === item.ans) b.classList.add('correct');
+              else if (j === i && !ok) b.classList.add('wrong');
+            });
+
+            qScoreText.textContent = `目前得分：${quizState.score} 分`;
+            quizFeedback.className = `q-feedback show ${ok ? 'ok' : 'bad'}`;
+            qFeedbackTitle.textContent = ok ? '✅ 答對了！觀念非常清楚！' : `❌ 答錯了！正確答案是 ${keys[item.ans]}`;
+            qFeedbackExplain.textContent = item.exp;
+            qNextBtn.textContent = quizState.idx === QUIZ_BANK.length - 1 ? '完成測驗（查看總分）' : '下一題 →';
+          });
+          quizOptions.appendChild(btn);
+        });
+      }
+
+      qNextBtn.addEventListener('click', () => {
+        if (quizState.idx < QUIZ_BANK.length - 1) {
+          quizState.idx += 1;
+          renderQuiz();
+        } else {
+          alert(`🎉 測驗完成！您的總得分為：${quizState.score} / ${QUIZ_BANK.length} 題！`);
+          quizState.idx = 0;
+          quizState.score = 0;
+          renderQuiz();
+        }
+      });
+
+      document.getElementById('restartQuizBtn').addEventListener('click', () => {
+        quizState.idx = 0;
+        quizState.score = 0;
+        renderQuiz();
+      });
+
+      // 初始化
+      drawMotor();
+      renderQuiz();
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>
