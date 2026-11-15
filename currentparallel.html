@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>並聯電路分流公式互動實驗室 | Current Divider Rule Lab</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans TC & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'Inter', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        lab: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155',
+                            cyan: '#06b6d4',
+                            amber: '#f59e0b',
+                            emerald: '#10b981',
+                            rose: '#f43f5e'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* 自訂滑桿樣式，提升操作手感 */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 999px;
+            background: #334155;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        .slider-total::-webkit-slider-thumb { background: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.6); }
+        .slider-r1::-webkit-slider-thumb { background: #22d3ee; box-shadow: 0 0 10px rgba(34, 211, 238, 0.6); }
+        .slider-r2::-webkit-slider-thumb { background: #34d399; box-shadow: 0 0 10px rgba(52, 211, 153, 0.6); }
+        .slider-r3::-webkit-slider-thumb { background: #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.6); }
+
+        /* 數學繁分數與一般分數排版輔助 */
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            margin: 0 0.3rem;
+            font-family: 'JetBrains Mono', 'Noto Sans TC', monospace;
+        }
+        .fraction > span:first-child {
+            border-bottom: 1.5px solid currentColor;
+            padding: 0 0.4rem 0.2rem 0.4rem;
+        }
+        .fraction > span:last-child {
+            padding: 0.2rem 0.4rem 0 0.4rem;
+        }
+        /* 繁分數內的小分數 (1/R) */
+        .mini-frac {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            font-size: 0.82em;
+            line-height: 1.05;
+            margin: 0 0.1rem;
+        }
+        .mini-frac > span:first-child {
+            border-bottom: 1px solid currentColor;
+            padding: 0 0.2rem 0.08rem 0.2rem;
+        }
+        .mini-frac > span:last-child {
+            padding: 0.08rem 0.2rem 0 0.2rem;
+        }
+
+        /* 隱藏數字輸入框預設上下箭頭 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                    <!-- 電路圖示 SVG -->
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        並聯電路分流公式實驗室
+                        <span class="hidden sm:inline-block text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">Current Divider Rule</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">觀察電流如何依據電阻大小「反比分配」的動態互動模擬</p>
+                </div>
+            </div>
+
+            <!-- 頂部模式與預設情境快速按鈕 -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs text-slate-400 hidden md:inline mr-1">快速情境實驗：</span>
+                <button onclick="applyPreset('equal')" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95">
+                    ⚖️ 三電阻相等 (10, 10, 10Ω)
+                </button>
+                <button onclick="applyPreset('multiple')" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95">
+                    📊 倍數關係 (10, 20, 30Ω)
+                </button>
+                <button onclick="applyPreset('drain')" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-950/60 hover:bg-cyan-900/70 text-cyan-200 border border-cyan-800/60 transition active:scale-95">
+                    🧲 極小電阻吸流 (2, 20, 50Ω)
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區域 -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- 頂部儀表板數據卡 (即時計算結果) -->
+        <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            <!-- 總電流 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                <div class="text-xs text-slate-400 flex items-center justify-between">
+                    <span>總輸入電流 (I<sub>total</sub>)</span>
+                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                </div>
+                <div class="mt-1.5 font-mono text-xl sm:text-2xl font-bold text-sky-400" id="stat-itotal">11.00 A</div>
+                <div class="text-[11px] text-slate-500 mt-0.5">100% 總電流</div>
+            </div>
+
+            <!-- 並聯總電導與等效電阻 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                <div class="text-xs text-slate-400">總電導 Σ(1/R) / 等效電阻</div>
+                <div class="mt-1.5 font-mono text-sm sm:text-base font-bold text-purple-300">
+                    <span id="stat-gtotal">0.183 S</span> <span class="text-slate-600">|</span> <span id="stat-req" class="text-indigo-300">5.45 Ω</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">端電壓 V = <span id="stat-v" class="text-slate-300 font-mono">60.0 V</span></div>
+            </div>
+
+            <!-- 支路 1 電流 -->
+            <div class="bg-slate-900 border border-cyan-900/50 rounded-2xl p-3.5 sm:p-4 shadow-sm relative overflow-hidden">
+                <div class="text-xs text-cyan-300/80 flex items-center justify-between">
+                    <span>支路 1 電流 (I₁)</span>
+                    <span class="font-mono font-bold text-cyan-400" id="stat-p1">54.5%</span>
+                </div>
+                <div class="mt-1.5 font-mono text-xl sm:text-2xl font-bold text-cyan-400" id="stat-i1">6.00 A</div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div id="bar-p1" class="bg-cyan-400 h-full transition-all duration-150" style="width: 54.5%"></div>
+                </div>
+            </div>
+
+            <!-- 支路 2 電流 (翠綠色) -->
+            <div class="bg-slate-900 border border-emerald-900/50 rounded-2xl p-3.5 sm:p-4 shadow-sm relative overflow-hidden">
+                <div class="text-xs text-emerald-300/80 flex items-center justify-between">
+                    <span>支路 2 電流 (I₂)</span>
+                    <span class="font-mono font-bold text-emerald-400" id="stat-p2">27.3%</span>
+                </div>
+                <div class="mt-1.5 font-mono text-xl sm:text-2xl font-bold text-emerald-400" id="stat-i2">3.00 A</div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div id="bar-p2" class="bg-emerald-400 h-full transition-all duration-150" style="width: 27.3%"></div>
+                </div>
+            </div>
+
+            <!-- 支路 3 電流 (琥珀橘色) -->
+            <div id="stat-card-3" class="col-span-2 sm:col-span-1 bg-slate-900 border border-amber-900/50 rounded-2xl p-3.5 sm:p-4 shadow-sm relative overflow-hidden transition-opacity">
+                <div class="text-xs text-amber-300/80 flex items-center justify-between">
+                    <span>支路 3 電流 (I₃)</span>
+                    <span class="font-mono font-bold text-amber-400" id="stat-p3">18.2%</span>
+                </div>
+                <div class="mt-1.5 font-mono text-xl sm:text-2xl font-bold text-amber-400" id="stat-i3">2.00 A</div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div id="bar-p3" class="bg-amber-400 h-full transition-all duration-150" style="width: 18.2%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 核心雙欄工作區：左側動態電路模擬器 + 右側公式與即時演算 -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- 左側欄位 (7 cols)：互動電路畫布 + 參數控制滑桿 -->
+            <div class="lg:col-span-7 space-y-5">
+                
+                <!-- 電路視覺化卡片 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                    <!-- 畫布標題列與拓撲切換 -->
+                    <div class="px-4 py-3 bg-slate-900/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-slate-200">⚡ IEC 長方形電阻分流模擬圖</span>
+                            <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">粒子速度與密度 ∝ 1/R</span>
+                        </div>
+                        
+                        <!-- 2電阻 / 3電阻 切換開關 (預設開啟 3 個電阻並聯) -->
+                        <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+                            <button id="btn-mode-2" onclick="setBranchCount(2)" class="px-3 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">
+                                2 個電阻並聯
+                            </button>
+                            <button id="btn-mode-3" onclick="setBranchCount(3)" class="px-3 py-1 text-xs font-bold rounded-lg bg-cyan-600 text-white shadow transition">
+                                3 個電阻並聯
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 響應式 Canvas 容器 -->
+                    <div id="canvas-wrapper" class="relative w-full h-[340px] sm:h-[390px] bg-slate-950">
+                        <canvas id="circuitCanvas" class="block w-full h-full"></canvas>
+                        
+                        <!-- 畫布角落圖例說明 -->
+                        <div class="absolute bottom-3 left-3 bg-slate-900/85 backdrop-blur-sm border border-slate-800 rounded-xl px-3 py-2 text-[11px] text-slate-300 space-y-1 pointer-events-none">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span>
+                                <span>傳統電流方向（依電導比例 <span class="font-mono text-cyan-300">(1/Rᵢ) / Σ(1/R)</span> 分配）</span>
+                            </div>
+                            <div class="text-slate-400">💡 電阻 R 越小 → 電導 G = 1/R 越大 → 電流越快且越密集</div>
+                        </div>
+
+                        <!-- 暫停/播放動畫按鈕 -->
+                        <button id="btn-toggle-anim" onclick="toggleAnimation()" class="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 backdrop-blur-sm transition">
+                            ⏸ 暫停流動
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 參數控制面板 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            🎛️ 電路參數調整控制臺
+                        </h2>
+                        <span class="text-xs text-slate-400">拖曳滑桿或直接輸入數值</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- 總電流 Itotal 控制 (1A ~ 20A) -->
+                        <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="input-itotal" class="text-xs font-bold text-sky-400">總電流 I<sub>total</sub> (安培 A)</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" id="num-itotal" min="1" max="20" step="0.5" value="11" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-right font-mono text-sm font-bold text-sky-300 focus:border-sky-400 focus:outline-none">
+                                    <span class="text-xs text-slate-400 font-mono">A</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-itotal" min="1" max="20" step="0.5" value="11" class="w-full slider-total">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                                <span>1 A</span>
+                                <span>10 A</span>
+                                <span>20 A</span>
+                            </div>
+                        </div>
+
+                        <!-- 電阻 R1 控制 (青藍色) -->
+                        <div class="bg-slate-950/70 border border-cyan-950/80 rounded-xl p-3.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="input-r1" class="text-xs font-bold text-cyan-400">支路 1 電阻 R₁ (歐姆 Ω)</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" id="num-r1" min="1" max="100" step="1" value="10" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-right font-mono text-sm font-bold text-cyan-300 focus:border-cyan-400 focus:outline-none">
+                                    <span class="text-xs text-slate-400 font-mono">Ω</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-r1" min="1" max="100" step="1" value="10" class="w-full slider-r1">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                                <span>1 Ω</span>
+                                <span>50 Ω</span>
+                                <span>100 Ω</span>
+                            </div>
+                        </div>
+
+                        <!-- 電阻 R2 控制 (翠綠色) -->
+                        <div class="bg-slate-950/70 border border-emerald-950/80 rounded-xl p-3.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="input-r2" class="text-xs font-bold text-emerald-400">支路 2 電阻 R₂ (歐姆 Ω)</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" id="num-r2" min="1" max="100" step="1" value="20" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-right font-mono text-sm font-bold text-emerald-300 focus:border-emerald-400 focus:outline-none">
+                                    <span class="text-xs text-slate-400 font-mono">Ω</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-r2" min="1" max="100" step="1" value="20" class="w-full slider-r2">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                                <span>1 Ω</span>
+                                <span>50 Ω</span>
+                                <span>100 Ω</span>
+                            </div>
+                        </div>
+
+                        <!-- 電阻 R3 控制 (琥珀橘色，預設開啟顯示) -->
+                        <div id="control-r3-box" class="bg-slate-950/70 border border-amber-950/80 rounded-xl p-3.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="input-r3" class="text-xs font-bold text-amber-400">支路 3 電阻 R₃ (歐姆 Ω)</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" id="num-r3" min="1" max="100" step="1" value="30" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-right font-mono text-sm font-bold text-amber-300 focus:border-amber-400 focus:outline-none">
+                                    <span class="text-xs text-slate-400 font-mono">Ω</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-r3" min="1" max="100" step="1" value="30" class="w-full slider-r3">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                                <span>1 Ω</span>
+                                <span>50 Ω</span>
+                                <span>100 Ω</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側欄位 (5 cols)：統一電導比例分流公式 + 動態計算步驟 + 公式推導 -->
+            <div class="lg:col-span-5 space-y-5">
+                
+                <!-- 核心分流公式與觀念卡片 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            📐 統一電導比例分流公式
+                        </h2>
+                        <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-medium">
+                            2、3個以上電阻完全通用
+                        </span>
+                    </div>
+
+                    <!-- 統一電導比例公式卡片 (動態隨 2/3 電阻模式切換對應標準繁分數公式) -->
+                    <div class="bg-gradient-to-br from-slate-950 to-slate-900 border border-cyan-500/30 rounded-xl p-4 space-y-3">
+                        <div class="flex items-center justify-between flex-wrap gap-1">
+                            <span class="text-xs font-bold text-cyan-300" id="unified-formula-title">★ 三電阻並聯統一公式（電導比例法）</span>
+                            <span class="text-[11px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">分子放「自己電導 1/Rᵢ」</span>
+                        </div>
+                        
+                        <!-- 標準繁分數公式展示區 -->
+                        <div id="unified-formula-display" class="space-y-2.5 pt-1">
+                            <!-- 由 JS 依據 2 電阻或 3 電阻模式動態渲染 -->
+                        </div>
+
+                        <p class="text-xs text-slate-300 leading-relaxed bg-slate-800/60 p-2.5 rounded-lg">
+                            💡 <strong>為什麼用 <span class="font-mono text-cyan-300">1/R</span>（電導 <span class="font-mono text-purple-300">G</span>，單位：西門子 S）最直觀？</strong><br>
+                            電阻 <span class="font-mono">R</span> 代表「阻礙程度」，其倒數 <span class="font-mono">G = 1/R</span> 代表「<strong>導電容易程度</strong>」。並聯時所有支路電壓相同，因此電流直接按照各支路的「導電能力比例 <span class="font-mono">(1/Rᵢ) / Σ(1/R)</span>」分配！無須死背雙電阻「對方電阻」特例，無論 2 個、3 個或 N 個電阻公式結構完全一致。
+                        </p>
+                    </div>
+
+                    <!-- 即時動態代入計算步驟 -->
+                    <div class="space-y-2.5">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">🔄 目前數值即時代入演算（繁分數與數值結果）</h3>
+                        <div id="live-calculation-steps" class="space-y-2.5 font-mono text-xs sm:text-sm">
+                            <!-- 由 JavaScript 動態填入 -->
+                        </div>
+                    </div>
+
+                    <!-- 可摺疊的公式推導過程 -->
+                    <div class="border-t border-slate-800 pt-3">
+                        <button onclick="toggleDerivation()" class="w-full flex items-center justify-between text-left text-xs font-bold text-slate-300 hover:text-cyan-300 py-1.5 transition">
+                            <span>📖 點擊展開：從並聯電壓相等推導統一電導分流公式</span>
+                            <span id="derivation-arrow" class="transform transition-transform duration-200">▼</span>
+                        </button>
+                        <div id="derivation-content" class="hidden mt-2 bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-300 space-y-2.5 leading-relaxed">
+                            <p><strong class="text-cyan-400">步驟 1：並聯電路各支路端電壓相等</strong><br>
+                            在並聯電路中，所有電阻跨接在相同的兩個節點上，因此端電壓 <span class="font-mono text-indigo-300">V</span> 完全相同：</p>
+                            <div class="font-mono bg-slate-900 p-2 rounded text-center text-indigo-200">
+                                V = I₁ · R₁ = I₂ · R₂ = I₃ · R₃
+                            </div>
+                            <p><strong class="text-cyan-400">步驟 2：改寫為電導（1/R）形式</strong><br>
+                            將上式移項，可看出每條支路的電流正比於該支路電阻的倒數 <span class="font-mono text-purple-300">1/Rᵢ</span>：</p>
+                            <div class="font-mono bg-slate-900 p-2 rounded text-center text-purple-200">
+                                I₁ = V · (1/R₁) &nbsp;,&nbsp; I₂ = V · (1/R₂) &nbsp;,&nbsp; I₃ = V · (1/R₃)
+                            </div>
+                            <p><strong class="text-cyan-400">步驟 3：代入克希荷夫電流定律 (KCL)</strong><br>
+                            總電流等於各支路電流總和：<span class="font-mono">I<sub>total</sub> = I₁ + I₂ + I₃ = V · (1/R₁ + 1/R₂ + 1/R₃)</span>，解出 <span class="font-mono">V</span> 後代回 <span class="font-mono">Iᵢ = V · (1/Rᵢ)</span>，即得通用通式：</p>
+                            <div class="font-mono bg-slate-900 p-2.5 rounded text-center text-cyan-200 flex items-center justify-center">
+                                <span>Iᵢ = I<sub>total</sub> ×</span>
+                                <span class="fraction">
+                                    <span><span class="mini-frac"><span>1</span><span>Rᵢ</span></span></span>
+                                    <span>
+                                        <span class="mini-frac"><span>1</span><span>R₁</span></span> + 
+                                        <span class="mini-frac"><span>1</span><span>R₂</span></span> + 
+                                        <span class="mini-frac"><span>1</span><span>R₃</span></span>
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 互動式隨堂練習測驗區 -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                        🎯 隨堂實戰練習 (Interactive Practice Mode)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">運用統一的電導比例分流公式 <span class="font-mono text-cyan-300">Iᵢ = I_total × (1/Rᵢ) / Σ(1/R)</span> 解答 2 電阻或 3 電阻題目！</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="text-xs bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl font-mono">
+                        答對題數：<span id="quiz-score" class="text-emerald-400 font-bold">0</span> / <span id="quiz-total" class="text-slate-300">0</span>
+                    </div>
+                    <button onclick="generateNewQuiz()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition active:scale-95">
+                        🎲 換一題新題目
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                <!-- 題目敘述區 -->
+                <div class="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <span id="quiz-badge" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                            三電阻並聯題型
+                        </span>
+                        <span class="text-xs text-slate-500">允許誤差範圍 ±0.05 A</span>
+                    </div>
+                    <p id="quiz-question-text" class="text-sm sm:text-base text-slate-200 leading-relaxed font-medium">
+                        載入題目中...
+                    </p>
+                    <div id="quiz-params-pills" class="flex flex-wrap gap-2 pt-1 font-mono text-xs">
+                        <!-- 題目數值標籤 -->
+                    </div>
+                </div>
+
+                <!-- 作答輸入與回饋區 -->
+                <div class="lg:col-span-5 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <div class="relative flex-1">
+                            <input type="number" id="quiz-answer-input" step="0.01" placeholder="輸入計算結果 (例如: 3.0)" class="w-full bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-3 font-mono text-base text-white placeholder-slate-500 focus:outline-none">
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-sm text-slate-400">A (安培)</span>
+                        </div>
+                        <button onclick="checkQuizAnswer()" class="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-lg shadow-emerald-600/20 transition active:scale-95 whitespace-nowrap">
+                            送出檢查
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs">
+                        <button onclick="loadQuizToSimulator()" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+                            🔬 將此題數值載入上方模擬器觀察
+                        </button>
+                        <button onclick="toggleQuizHint()" class="text-amber-400 hover:text-amber-300">
+                            💡 需要解題提示？
+                        </button>
+                    </div>
+
+                    <!-- 提示訊息框 -->
+                    <div id="quiz-hint-box" class="hidden bg-amber-950/40 border border-amber-800/60 rounded-xl p-3 text-xs text-amber-200 leading-relaxed"></div>
+
+                    <!-- 批改結果與詳解框 -->
+                    <div id="quiz-feedback-box" class="hidden rounded-xl p-3.5 text-xs leading-relaxed border"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
+        互動式基本電學實驗室 • 並聯電路統一電導比例分流公式與 IEC 標準電路符號教學工具
+    </footer>
+
+    <!-- 核心模擬與互動邏輯腳本 -->
+    <script>
+        // ==========================================
+        // 1. 全域狀態管理 (State Management) - 預設開啟 3 個電阻並聯
+        // ==========================================
+        const state = {
+            branchCount: 3,     // 預設開啟 3 個電阻並聯 (2 或 3)
+            iTotal: 11.0,       // 總電流 (A) -> 10, 20, 30Ω 搭配 11A 可得出整數 6A, 3A, 2A
+            r1: 10.0,           // 電阻 1 (Ω) - 青藍色
+            r2: 20.0,           // 電阻 2 (Ω) - 翠綠色
+            r3: 30.0,           // 電阻 3 (Ω) - 琥珀橘色
+            isAnimating: true,  // 粒子動畫是否播放中
+            particles: [],      // 電流粒子陣列
+            lastTime: 0
+        };
+
+        // 計算結果快取
+        let computed = {
+            g1: 0,
+            g2: 0,
+            g3: 0,
+            gTotal: 0,
+            rEq: 0,
+            voltage: 0,
+            i1: 0,
+            i2: 0,
+            i3: 0,
+            p1: 0,
+            p2: 0,
+            p3: 0
+        };
+
+        // 隨堂測驗狀態
+        let quizState = {
+            branchCount: 3,
+            iTotal: 11,
+            r1: 10,
+            r2: 20,
+            r3: 30,
+            targetBranch: 1,
+            correctAnswer: 6,
+            score: 0,
+            totalAttempted: 0,
+            answeredCurrent: false
+        };
+
+        // 輔助函式：產生 HTML 繁分數結構
+        function buildComplexFractionHTML(numTop, numBot, denTerms) {
+            const denHTML = denTerms.map(([t, b]) => `
+                <span class="mini-frac">
+                    <span>${t}</span>
+                    <span>${b}</span>
+                </span>
+            `).join(' <span class="mx-0.5">+</span> ');
+
+            return `
+                <span class="fraction">
+                    <span>
+                        <span class="mini-frac">
+                            <span>${numTop}</span>
+                            <span>${numBot}</span>
+                        </span>
+                    </span>
+                    <span>${denHTML}</span>
+                </span>
+            `;
+        }
+
+        // ==========================================
+        // 2. 物理公式計算核心 (統一電導比例法)
+        // ==========================================
+        function recalculatePhysics() {
+            const { branchCount, iTotal, r1, r2, r3 } = state;
+
+            computed.g1 = 1 / r1;
+            computed.g2 = 1 / r2;
+            computed.g3 = branchCount === 3 ? (1 / r3) : 0;
+            computed.gTotal = computed.g1 + computed.g2 + computed.g3;
+
+            computed.rEq = 1 / computed.gTotal;
+            computed.voltage = iTotal * computed.rEq;
+
+            // 統一採用電導比例公式: Ii = Itotal * ((1/Ri) / Σ(1/R))
+            computed.i1 = iTotal * (computed.g1 / computed.gTotal);
+            computed.i2 = iTotal * (computed.g2 / computed.gTotal);
+            computed.i3 = branchCount === 3 ? iTotal * (computed.g3 / computed.gTotal) : 0;
+
+            // 計算各支路電流百分比
+            computed.p1 = (computed.i1 / iTotal) * 100;
+            computed.p2 = (computed.i2 / iTotal) * 100;
+            computed.p3 = (computed.i3 / iTotal) * 100;
+
+            updateUI();
+        }
+
+        // ==========================================
+        // 3. UI 介面與統一繁分數算式更新
+        // ==========================================
+        function updateUI() {
+            // 更新頂部數據儀表板
+            document.getElementById('stat-itotal').textContent = `${state.iTotal.toFixed(2)} A`;
+            document.getElementById('stat-gtotal').textContent = `${computed.gTotal.toFixed(3)} S`;
+            document.getElementById('stat-req').textContent = `${computed.rEq.toFixed(2)} Ω`;
+            document.getElementById('stat-v').textContent = `${computed.voltage.toFixed(1)} V`;
+
+            document.getElementById('stat-i1').textContent = `${computed.i1.toFixed(2)} A`;
+            document.getElementById('stat-p1').textContent = `${computed.p1.toFixed(1)}%`;
+            document.getElementById('bar-p1').style.width = `${Math.min(100, computed.p1)}%`;
+
+            document.getElementById('stat-i2').textContent = `${computed.i2.toFixed(2)} A`;
+            document.getElementById('stat-p2').textContent = `${computed.p2.toFixed(1)}%`;
+            document.getElementById('bar-p2').style.width = `${Math.min(100, computed.p2)}%`;
+
+            const card3 = document.getElementById('stat-card-3');
+            if (state.branchCount === 3) {
+                card3.classList.remove('opacity-40');
+                document.getElementById('stat-i3').textContent = `${computed.i3.toFixed(2)} A`;
+                document.getElementById('stat-p3').textContent = `${computed.p3.toFixed(1)}%`;
+                document.getElementById('bar-p3').style.width = `${Math.min(100, computed.p3)}%`;
+            } else {
+                card3.classList.add('opacity-40');
+                document.getElementById('stat-i3').textContent = '—';
+                document.getElementById('stat-p3').textContent = '未啟用';
+                document.getElementById('bar-p3').style.width = '0%';
+            }
+
+            // 更新右側統一電導比例公式卡片
+            const formulaTitle = document.getElementById('unified-formula-title');
+            const formulaDisplay = document.getElementById('unified-formula-display');
+            const stepsContainer = document.getElementById('live-calculation-steps');
+
+            if (state.branchCount === 2) {
+                formulaTitle.textContent = '★ 雙電阻並聯統一公式（電導比例法）';
+                const symDen = [['1', 'R₁'], ['1', 'R₂']];
+                formulaDisplay.innerHTML = `
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div class="bg-slate-900/95 rounded-lg p-2.5 border border-cyan-900/60 text-center text-xs sm:text-sm text-cyan-300 font-mono">
+                            I₁ = I<sub>total</sub> × ${buildComplexFractionHTML('1', 'R₁', symDen)}
+                        </div>
+                        <div class="bg-slate-900/95 rounded-lg p-2.5 border border-emerald-900/60 text-center text-xs sm:text-sm text-emerald-300 font-mono">
+                            I₂ = I<sub>total</sub> × ${buildComplexFractionHTML('1', 'R₂', symDen)}
+                        </div>
+                    </div>
+                `;
+
+                const numDen = [['1', state.r1], ['1', state.r2]];
+                stepsContainer.innerHTML = `
+                    <div class="bg-cyan-950/30 border border-cyan-800/50 rounded-xl p-3 text-cyan-100">
+                        <div class="text-[11px] text-cyan-400 mb-1">支路 1（電導 G₁ = 1/${state.r1} = ${computed.g1.toFixed(3)} S）：</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span>I₁ = ${state.iTotal} ×</span>
+                            ${buildComplexFractionHTML('1', state.r1, numDen)}
+                            <span>= ${state.iTotal} ×</span>
+                            <span class="fraction">
+                                <span>${computed.g1.toFixed(3)}</span>
+                                <span>${computed.gTotal.toFixed(3)}</span>
+                            </span>
+                            <span>= <strong class="text-cyan-300 text-base">${computed.i1.toFixed(2)} A</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-emerald-950/30 border border-emerald-800/50 rounded-xl p-3 text-emerald-100">
+                        <div class="text-[11px] text-emerald-400 mb-1">支路 2（電導 G₂ = 1/${state.r2} = ${computed.g2.toFixed(3)} S）：</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span>I₂ = ${state.iTotal} ×</span>
+                            ${buildComplexFractionHTML('1', state.r2, numDen)}
+                            <span>= ${state.iTotal} ×</span>
+                            <span class="fraction">
+                                <span>${computed.g2.toFixed(3)}</span>
+                                <span>${computed.gTotal.toFixed(3)}</span>
+                            </span>
+                            <span>= <strong class="text-emerald-300 text-base">${computed.i2.toFixed(2)} A</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="text-[11px] text-slate-400 text-right">
+                        克希荷夫電流定律驗證：I₁ + I₂ = ${computed.i1.toFixed(2)} + ${computed.i2.toFixed(2)} = <span class="text-sky-400 font-bold">${(computed.i1 + computed.i2).toFixed(2)} A</span>
+                    </div>
+                `;
+            } else {
+                formulaTitle.textContent = '★ 三電阻並聯統一公式（電導比例法）';
+                const symDen = [['1', 'R₁'], ['1', 'R₂'], ['1', 'R₃']];
+                formulaDisplay.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="bg-slate-900/95 rounded-lg p-2 border border-cyan-900/60 text-center text-xs sm:text-sm text-cyan-300 font-mono">
+                            I₁ = I<sub>total</sub> × ${buildComplexFractionHTML('1', 'R₁', symDen)}
+                        </div>
+                        <div class="bg-slate-900/95 rounded-lg p-2 border border-emerald-900/60 text-center text-xs sm:text-sm text-emerald-300 font-mono">
+                            I₂ = I<sub>total</sub> × ${buildComplexFractionHTML('1', 'R₂', symDen)}
+                        </div>
+                        <div class="bg-slate-900/95 rounded-lg p-2 border border-amber-900/60 text-center text-xs sm:text-sm text-amber-300 font-mono">
+                            I₃ = I<sub>total</sub> × ${buildComplexFractionHTML('1', 'R₃', symDen)}
+                        </div>
+                    </div>
+                `;
+
+                const numDen = [['1', state.r1], ['1', state.r2], ['1', state.r3]];
+                stepsContainer.innerHTML = `
+                    <div class="bg-cyan-950/30 border border-cyan-800/50 rounded-xl p-2.5 text-cyan-100">
+                        <div class="text-[11px] text-cyan-400 mb-0.5">支路 1（G₁ = 1/${state.r1} = ${computed.g1.toFixed(3)} S）：</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span>I₁ = ${state.iTotal} ×</span>
+                            ${buildComplexFractionHTML('1', state.r1, numDen)}
+                            <span>= <strong class="text-cyan-300 text-sm">${computed.i1.toFixed(2)} A</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-emerald-950/30 border border-emerald-800/50 rounded-xl p-2.5 text-emerald-100">
+                        <div class="text-[11px] text-emerald-400 mb-0.5">支路 2（G₂ = 1/${state.r2} = ${computed.g2.toFixed(3)} S）：</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span>I₂ = ${state.iTotal} ×</span>
+                            ${buildComplexFractionHTML('1', state.r2, numDen)}
+                            <span>= <strong class="text-emerald-300 text-sm">${computed.i2.toFixed(2)} A</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-amber-950/30 border border-amber-800/50 rounded-xl p-2.5 text-amber-100">
+                        <div class="text-[11px] text-amber-400 mb-0.5">支路 3（G₃ = 1/${state.r3} = ${computed.g3.toFixed(3)} S）：</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span>I₃ = ${state.iTotal} ×</span>
+                            ${buildComplexFractionHTML('1', state.r3, numDen)}
+                            <span>= <strong class="text-amber-300 text-sm">${computed.i3.toFixed(2)} A</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="text-[11px] text-slate-400 text-right">
+                        總電導 Σ(1/R) = ${computed.gTotal.toFixed(3)} S ｜ 總電流驗證：I₁ + I₂ + I₃ = <span class="text-sky-400 font-bold">${(computed.i1 + computed.i2 + computed.i3).toFixed(2)} A</span>
+                    </div>
+                `;
+            }
+        }
+
+        // ==========================================
+        // 4. 控制項事件綁定與模式切換
+        // ==========================================
+        function bindInputs() {
+            const pairs = [
+                { slider: 'input-itotal', num: 'num-itotal', key: 'iTotal', min: 1, max: 20 },
+                { slider: 'input-r1', num: 'num-r1', key: 'r1', min: 1, max: 100 },
+                { slider: 'input-r2', num: 'num-r2', key: 'r2', min: 1, max: 100 },
+                { slider: 'input-r3', num: 'num-r3', key: 'r3', min: 1, max: 100 }
+            ];
+
+            pairs.forEach(({ slider, num, key, min, max }) => {
+                const sliderEl = document.getElementById(slider);
+                const numEl = document.getElementById(num);
+
+                sliderEl.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    state[key] = val;
+                    numEl.value = val;
+                    recalculatePhysics();
+                });
+
+                numEl.addEventListener('input', (e) => {
+                    let val = parseFloat(e.target.value);
+                    if (isNaN(val)) return;
+                    val = Math.max(min, Math.min(max, val));
+                    state[key] = val;
+                    sliderEl.value = Math.max(sliderEl.min, Math.min(sliderEl.max, val));
+                    recalculatePhysics();
+                });
+            });
+        }
+
+        function setBranchCount(count) {
+            state.branchCount = count;
+            const btn2 = document.getElementById('btn-mode-2');
+            const btn3 = document.getElementById('btn-mode-3');
+            const r3Box = document.getElementById('control-r3-box');
+
+            if (count === 2) {
+                btn2.className = "px-3 py-1 text-xs font-bold rounded-lg bg-cyan-600 text-white shadow transition";
+                btn3.className = "px-3 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+                r3Box.classList.add('hidden');
+            } else {
+                btn3.className = "px-3 py-1 text-xs font-bold rounded-lg bg-cyan-600 text-white shadow transition";
+                btn2.className = "px-3 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+                r3Box.classList.remove('hidden');
+            }
+
+            initParticles();
+            recalculatePhysics();
+        }
+
+        // 快速實驗情境預設按鈕（預設採用三電阻並聯以完整呈現三個電阻實驗）
+        function applyPreset(type) {
+            setBranchCount(3);
+            if (type === 'equal') {
+                setParamValues(12, 10, 10, 10);
+            } else if (type === 'multiple') {
+                setParamValues(11, 10, 20, 30);
+            } else if (type === 'drain') {
+                setParamValues(12, 2, 20, 50);
+            }
+        }
+
+        function setParamValues(iTotal, r1, r2, r3) {
+            state.iTotal = iTotal;
+            state.r1 = r1;
+            state.r2 = r2;
+            state.r3 = r3;
+
+            document.getElementById('input-itotal').value = iTotal;
+            document.getElementById('num-itotal').value = iTotal;
+            document.getElementById('input-r1').value = r1;
+            document.getElementById('num-r1').value = r1;
+            document.getElementById('input-r2').value = r2;
+            document.getElementById('num-r2').value = r2;
+            document.getElementById('input-r3').value = r3;
+            document.getElementById('num-r3').value = r3;
+
+            recalculatePhysics();
+        }
+
+        function toggleDerivation() {
+            const content = document.getElementById('derivation-content');
+            const arrow = document.getElementById('derivation-arrow');
+            content.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+
+        function toggleAnimation() {
+            state.isAnimating = !state.isAnimating;
+            const btn = document.getElementById('btn-toggle-anim');
+            btn.textContent = state.isAnimating ? '⏸ 暫停流動' : '▶️ 繼續流動';
+        }
+
+        // ==========================================
+        // 5. HTML5 Canvas 動態電路與 IEC 長方形電阻繪製引擎
+        // ==========================================
+        const canvas = document.getElementById('circuitCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = wrapper.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        // 取得電路幾何座標 (依據畫布寬高動態自適應)
+        function getCircuitGeometry() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+
+            const leftX = Math.max(52, w * 0.12);       // 左側電流源主幹 X
+            const topY = Math.max(45, h * 0.14);        // 上方主匯流排 Y
+            const bottomY = h - Math.max(55, h * 0.17); // 下方回流匯流排 Y
+            const midY = (topY + bottomY) / 2;
+
+            // 支路 X 座標分配 (保留右側標籤空間)
+            let branchXs = [];
+            if (state.branchCount === 2) {
+                branchXs = [w * 0.42, w * 0.74];
+            } else {
+                branchXs = [w * 0.34, w * 0.58, w * 0.82];
+            }
+
+            return { w, h, leftX, topY, bottomY, midY, branchXs };
+        }
+
+        // 初始化粒子系統
+        function initParticles() {
+            state.particles = [];
+            for (let i = 0; i < 72; i++) {
+                state.particles.push({
+                    segment: i < 22 ? 'main_in' : (i < 50 ? 'branch' : 'main_out'),
+                    branchIndex: i % 3,
+                    progress: Math.random()
+                });
+            }
+        }
+
+        // 繪製國際電工委員會 (IEC) 標準「長方形框（Rectangle）」電阻符號
+        function drawIECResistorRect(x, centerY, height, color, rgbTuple, label, resistanceVal, currentVal) {
+            const rectW = 30;
+            const rectH = height;
+            const topEdge = centerY - rectH / 2;
+            const leftEdge = x - rectW / 2;
+            const ratio = Math.min(1, currentVal / state.iTotal);
+
+            ctx.save();
+
+            // 電流比例發光效果
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 6 + ratio * 18;
+
+            // 長方形內部半透明填充（隨電流佔比調整深度）
+            ctx.fillStyle = `rgba(${rgbTuple}, ${0.12 + ratio * 0.22})`;
+            ctx.beginPath();
+            ctx.roundRect(leftEdge, topEdge, rectW, rectH, 4);
+            ctx.fill();
+
+            // 長方形外框線條
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.8;
+            ctx.stroke();
+
+            // 長方形內部標示電阻編號 (R1, R2, R3)
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 13px "JetBrains Mono", "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, x, centerY);
+
+            // 長方形右側清楚標示即時歐姆數值與分流電流讀數
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            const textX = x + rectW / 2 + 8;
+
+            ctx.font = 'bold 12px "JetBrains Mono", "Noto Sans TC", sans-serif';
+            ctx.fillStyle = color;
+            ctx.fillText(`${resistanceVal} Ω`, textX, centerY - 5);
+
+            ctx.font = '600 11px "JetBrains Mono", sans-serif';
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillText(`I=${currentVal.toFixed(2)}A`, textX, centerY + 11);
+
+            ctx.restore();
+        }
+
+        // 繪製獨立電流源符號 (圓圈內含向上箭頭)
+        function drawCurrentSource(x, midY, iTotal) {
+            const radius = 23;
+            ctx.save();
+            
+            // 外圈
+            ctx.beginPath();
+            ctx.arc(x, midY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#0f172a';
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+
+            // 內部向上箭頭
+            ctx.beginPath();
+            ctx.moveTo(x, midY + 11);
+            ctx.lineTo(x, midY - 11);
+            ctx.moveTo(x - 6, midY - 4);
+            ctx.lineTo(x, midY - 11);
+            ctx.lineTo(x + 6, midY - 4);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // 標籤文字
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 12px "JetBrains Mono", "Noto Sans TC", sans-serif';
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('總電流源', x, midY + radius + 16);
+            ctx.font = 'bold 13px "JetBrains Mono", sans-serif';
+            ctx.fillStyle = '#e0f2fe';
+            ctx.fillText(`${iTotal.toFixed(1)} A`, x, midY + radius + 32);
+
+            ctx.restore();
+        }
+
+        // 主繪圖迴圈
+        function renderCircuit(timestamp) {
+            if (!state.lastTime) state.lastTime = timestamp;
+            const dt = Math.min(0.05, (timestamp - state.lastTime) / 1000);
+            state.lastTime = timestamp;
+
+            const geo = getCircuitGeometry();
+            const { w, h, leftX, topY, bottomY, midY, branchXs } = geo;
+            const rightMostX = branchXs[branchXs.length - 1];
+
+            // 清空畫布並繪製微細網格背景
+            ctx.clearRect(0, 0, w, h);
+            ctx.strokeStyle = 'rgba(30, 41, 59, 0.45)';
+            ctx.lineWidth = 1;
+            const gridSize = 24;
+            for (let gx = 0; gx < w; gx += gridSize) {
+                ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+            }
+            for (let gy = 0; gy < h; gy += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+            }
+
+            // 1. 繪製導線主幹與並聯支路
+            ctx.save();
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // 左側垂直主幹 + 上下匯流排
+            ctx.beginPath();
+            ctx.moveTo(leftX, bottomY);
+            ctx.lineTo(leftX, topY);
+            ctx.lineTo(rightMostX, topY);
+            ctx.moveTo(rightMostX, bottomY);
+            ctx.lineTo(leftX, bottomY);
+            ctx.stroke();
+
+            // 各並聯支路垂直導線與長方形電阻 (R1 青藍, R2 翠綠, R3 琥珀橘)
+            const resHeight = Math.min(96, (bottomY - topY) * 0.48);
+            const branchColors = ['#22d3ee', '#34d399', '#fbbf24'];
+            const branchRGBs = ['34, 211, 238', '52, 211, 153', '251, 191, 36'];
+            const branchRes = [state.r1, state.r2, state.r3];
+            const branchCurr = [computed.i1, computed.i2, computed.i3];
+            const branchLabels = ['R₁', 'R₂', 'R₃'];
+
+            branchXs.forEach((bx, idx) => {
+                // 上導線至長方形電阻頂端
+                ctx.beginPath();
+                ctx.moveTo(bx, topY);
+                ctx.lineTo(bx, midY - resHeight / 2);
+                // 長方形電阻底端至下匯流排
+                ctx.moveTo(bx, midY + resHeight / 2);
+                ctx.lineTo(bx, bottomY);
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                // 節點圓點 (分流節點與匯流節點)
+                if (idx < branchXs.length - 1) {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.beginPath(); ctx.arc(bx, topY, 4.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(bx, bottomY, 4.5, 0, Math.PI * 2); ctx.fill();
+                }
+
+                // 繪製 IEC 標準長方形電阻元件
+                drawIECResistorRect(
+                    bx,
+                    midY,
+                    resHeight,
+                    branchColors[idx],
+                    branchRGBs[idx],
+                    branchLabels[idx],
+                    branchRes[idx],
+                    branchCurr[idx]
+                );
+            });
+            ctx.restore();
+
+            // 2. 更新並繪製電流粒子（依 (1/Ri) / Σ(1/R) 比例分配）
+            const baseSpeed = 0.28 + (state.iTotal / 20) * 0.42;
+            const ratios = state.branchCount === 2
+                ? [computed.i1 / state.iTotal, computed.i2 / state.iTotal]
+                : [computed.i1 / state.iTotal, computed.i2 / state.iTotal, computed.i3 / state.iTotal];
+
+            state.particles.forEach((p) => {
+                if (state.isAnimating) {
+                    if (p.segment === 'main_in' || p.segment === 'main_out') {
+                        p.progress += baseSpeed * dt;
+                    } else if (p.segment === 'branch') {
+                        const bIdx = p.branchIndex % state.branchCount;
+                        // 支路粒子速度與該支路電導比例成正比
+                        const branchSpeed = Math.max(0.06, baseSpeed * (0.25 + ratios[bIdx] * 1.95));
+                        p.progress += branchSpeed * dt;
+                    }
+
+                    // 粒子到達終點後依電導比例機率分配進入支路
+                    if (p.progress >= 1) {
+                        p.progress -= 1;
+                        if (p.segment === 'main_in') {
+                            p.segment = 'branch';
+                            const rand = Math.random();
+                            if (state.branchCount === 2) {
+                                p.branchIndex = rand < ratios[0] ? 0 : 1;
+                            } else {
+                                if (rand < ratios[0]) p.branchIndex = 0;
+                                else if (rand < ratios[0] + ratios[1]) p.branchIndex = 1;
+                                else p.branchIndex = 2;
+                            }
+                        } else if (p.segment === 'branch') {
+                            p.segment = 'main_out';
+                        } else {
+                            p.segment = 'main_in';
+                        }
+                    }
+                }
+
+                // 計算粒子螢幕 (x, y) 座標與顏色
+                let px = 0, py = 0, pColor = '#38bdf8', pRadius = 3.5;
+
+                if (p.segment === 'main_in') {
+                    const seg1Len = bottomY - topY;
+                    const seg2Len = branchXs[0] - leftX;
+                    const totalLen = seg1Len + seg2Len;
+                    const dist = p.progress * totalLen;
+                    if (dist < seg1Len) {
+                        px = leftX;
+                        py = bottomY - dist;
+                    } else {
+                        px = leftX + (dist - seg1Len);
+                        py = topY;
+                    }
+                    pColor = '#38bdf8';
+                    pRadius = 4;
+                } else if (p.segment === 'branch') {
+                    const bIdx = p.branchIndex % state.branchCount;
+                    const targetX = branchXs[bIdx];
+                    const horizLen = targetX - branchXs[0];
+                    const vertLen = bottomY - topY;
+                    const totalLen = horizLen + vertLen;
+                    const dist = p.progress * totalLen;
+
+                    if (dist < horizLen) {
+                        px = branchXs[0] + dist;
+                        py = topY;
+                    } else {
+                        px = targetX;
+                        py = topY + (dist - horizLen);
+                    }
+                    pColor = branchColors[bIdx];
+                    pRadius = 3.4;
+                } else {
+                    const bIdx = p.branchIndex % state.branchCount;
+                    const startX = branchXs[bIdx];
+                    px = startX - p.progress * (startX - leftX);
+                    py = bottomY;
+                    pColor = '#38bdf8';
+                    pRadius = 3.6;
+                }
+
+                // 避開電流源圓圈與長方形電阻內部文字遮擋
+                const distToSource = Math.hypot(px - leftX, py - midY);
+                let insideResistorLabel = false;
+                if (p.segment === 'branch') {
+                    const bIdx = p.branchIndex % state.branchCount;
+                    if (Math.abs(px - branchXs[bIdx]) < 14 && Math.abs(py - midY) < 16) {
+                        insideResistorLabel = true;
+                    }
+                }
+
+                if (distToSource > 22 && !insideResistorLabel) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(px, py, pRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = pColor;
+                    ctx.shadowColor = pColor;
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            // 3. 繪製左側總電流源 (置於最上層)
+            drawCurrentSource(leftX, midY, state.iTotal);
+
+            // 4. 繪製上方總電流標示箭頭
+            ctx.save();
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 12px "JetBrains Mono", "Noto Sans TC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`I_total = ${state.iTotal.toFixed(1)}A →`, (leftX + branchXs[0]) / 2, topY - 12);
+            ctx.restore();
+
+            requestAnimationFrame(renderCircuit);
+        }
+
+        // ==========================================
+        // 6. 隨堂互動測驗引擎 (統一採用電導比例公式引導與批改)
+        // ==========================================
+        function generateNewQuiz() {
+            const isThreeBranch = Math.random() > 0.45; // 55% 機率出現 3 電阻題型
+            quizState.branchCount = isThreeBranch ? 3 : 2;
+            quizState.answeredCurrent = false;
+
+            document.getElementById('quiz-hint-box').classList.add('hidden');
+            document.getElementById('quiz-feedback-box').classList.add('hidden');
+            document.getElementById('quiz-answer-input').value = '';
+
+            if (!isThreeBranch) {
+                const resistorPairs = [
+                    [10, 40], [20, 30], [15, 30], [12, 24], [10, 15], [25, 75], [30, 60], [20, 80]
+                ];
+                const [r1, r2] = resistorPairs[Math.floor(Math.random() * resistorPairs.length)];
+                const sum = r1 + r2;
+                const multipliers = [0.2, 0.4, 0.5, 1];
+                const mult = multipliers[Math.floor(Math.random() * multipliers.length)];
+                let iTotal = Math.max(2, Math.round(sum * mult));
+                if (iTotal > 20) iTotal = 10;
+
+                const target = Math.random() > 0.5 ? 1 : 2;
+                const g1 = 1 / r1, g2 = 1 / r2;
+                const targetG = target === 1 ? g1 : g2;
+
+                quizState.r1 = r1;
+                quizState.r2 = r2;
+                quizState.r3 = 30;
+                quizState.iTotal = iTotal;
+                quizState.targetBranch = target;
+                quizState.correctAnswer = iTotal * (targetG / (g1 + g2));
+
+                document.getElementById('quiz-badge').textContent = '雙電阻並聯題型';
+                document.getElementById('quiz-badge').className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30';
+                document.getElementById('quiz-question-text').innerHTML = `
+                    已知一個由兩個電阻並聯組成的電路，總輸入電流為 <span class="text-sky-400 font-mono font-bold">${iTotal} A</span>，
+                    兩支路電阻分別為 <span class="text-cyan-400 font-mono font-bold">R₁ = ${r1} Ω</span> 與 <span class="text-emerald-400 font-mono font-bold">R₂ = ${r2} Ω</span>。
+                    請利用電導比例分流公式計算 <strong class="underline decoration-2 underline-offset-4 text-white">支路 ${target} (I<sub>${target}</sub>)</strong> 的電流是多少安培？
+                `;
+                document.getElementById('quiz-params-pills').innerHTML = `
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-sky-300">I_total = ${iTotal} A</span>
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300">R₁ = ${r1} Ω</span>
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-emerald-300">R₂ = ${r2} Ω</span>
+                `;
+            } else {
+                const triplets = [
+                    [10, 20, 30], [10, 20, 20], [15, 30, 30], [20, 30, 60], [12, 24, 24], [30, 60, 60]
+                ];
+                const [r1, r2, r3] = triplets[Math.floor(Math.random() * triplets.length)];
+                const g1 = 1 / r1, g2 = 1 / r2, g3 = 1 / r3;
+                const gSum = g1 + g2 + g3;
+                const iTotal = (r1 === 10 && r2 === 20 && r3 === 30)
+                    ? 11
+                    : [6, 9, 12, 15, 18][Math.floor(Math.random() * 5)];
+                const target = [1, 2, 3][Math.floor(Math.random() * 3)];
+                const targetG = target === 1 ? g1 : (target === 2 ? g2 : g3);
+
+                quizState.r1 = r1;
+                quizState.r2 = r2;
+                quizState.r3 = r3;
+                quizState.iTotal = iTotal;
+                quizState.targetBranch = target;
+                quizState.correctAnswer = iTotal * (targetG / gSum);
+
+                document.getElementById('quiz-badge').textContent = '三電阻並聯題型';
+                document.getElementById('quiz-badge').className = 'text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30';
+                document.getElementById('quiz-question-text').innerHTML = `
+                    在一個三電阻並聯電路中，總電流 <span class="text-sky-400 font-mono font-bold">I<sub>total</sub> = ${iTotal} A</span>，
+                    三個並聯電阻分別為 <span class="text-cyan-400 font-mono font-bold">R₁ = ${r1} Ω</span>、<span class="text-emerald-400 font-mono font-bold">R₂ = ${r2} Ω</span>、<span class="text-amber-400 font-mono font-bold">R₃ = ${r3} Ω</span>。
+                    請利用統一電導比例分流公式計算 <strong class="underline decoration-2 underline-offset-4 text-white">支路 ${target} (I<sub>${target}</sub>)</strong> 的電流大小？
+                `;
+                document.getElementById('quiz-params-pills').innerHTML = `
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-sky-300">I_total = ${iTotal} A</span>
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-cyan-300">R₁ = ${r1} Ω</span>
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-emerald-300">R₂ = ${r2} Ω</span>
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-amber-300">R₃ = ${r3} Ω</span>
+                `;
+            }
+        }
+
+        function toggleQuizHint() {
+            const hintBox = document.getElementById('quiz-hint-box');
+            hintBox.classList.toggle('hidden');
+            if (!hintBox.classList.contains('hidden')) {
+                const targetR = quizState.targetBranch === 1 ? quizState.r1 : (quizState.targetBranch === 2 ? quizState.r2 : quizState.r3);
+                const denTerms = quizState.branchCount === 2
+                    ? [['1', quizState.r1], ['1', quizState.r2]]
+                    : [['1', quizState.r1], ['1', quizState.r2], ['1', quizState.r3]];
+                const gSum = quizState.branchCount === 2
+                    ? (1 / quizState.r1 + 1 / quizState.r2)
+                    : (1 / quizState.r1 + 1 / quizState.r2 + 1 / quizState.r3);
+
+                hintBox.innerHTML = `
+                    <strong>💡 解題提示（電導比例法）：</strong><br>
+                    1. 分子放目標支路的電導：<span class="font-mono">1 / R<sub>${quizState.targetBranch}</sub> = 1 / ${targetR} = ${(1 / targetR).toFixed(4)} S</span><br>
+                    2. 分母放所有支路電導總和：<span class="font-mono">Σ(1/R) = ${gSum.toFixed(4)} S</span><br>
+                    <div class="mt-1 flex items-center flex-wrap">
+                        <span>3. 代入公式：I<sub>${quizState.targetBranch}</sub> = ${quizState.iTotal} ×</span>
+                        ${buildComplexFractionHTML('1', targetR, denTerms)}
+                    </div>
+                `;
+            }
+        }
+
+        function checkQuizAnswer() {
+            const inputEl = document.getElementById('quiz-answer-input');
+            const feedbackBox = document.getElementById('quiz-feedback-box');
+            const userVal = parseFloat(inputEl.value);
+
+            feedbackBox.classList.remove('hidden');
+
+            if (isNaN(userVal)) {
+                feedbackBox.className = 'rounded-xl p-3.5 text-xs leading-relaxed border bg-rose-950/50 border-rose-800 text-rose-200';
+                feedbackBox.innerHTML = '⚠️ 請先輸入有效的數字答案再送出檢查！';
+                return;
+            }
+
+            const diff = Math.abs(userVal - quizState.correctAnswer);
+            const isCorrect = diff <= 0.05;
+
+            if (!quizState.answeredCurrent) {
+                quizState.totalAttempted++;
+                if (isCorrect) quizState.score++;
+                quizState.answeredCurrent = true;
+                document.getElementById('quiz-score').textContent = quizState.score;
+                document.getElementById('quiz-total').textContent = quizState.totalAttempted;
+            }
+
+            const targetR = quizState.targetBranch === 1 ? quizState.r1 : (quizState.targetBranch === 2 ? quizState.r2 : quizState.r3);
+            const denTerms = quizState.branchCount === 2
+                ? [['1', quizState.r1], ['1', quizState.r2]]
+                : [['1', quizState.r1], ['1', quizState.r2], ['1', quizState.r3]];
+
+            const explanationHTML = `
+                <div class="flex flex-wrap items-center gap-1 mt-1">
+                    <span>I<sub>${quizState.targetBranch}</sub> = ${quizState.iTotal} ×</span>
+                    ${buildComplexFractionHTML('1', targetR, denTerms)}
+                    <span>= <strong class="text-sm">${quizState.correctAnswer.toFixed(2)} A</strong></span>
+                </div>
+            `;
+
+            if (isCorrect) {
+                feedbackBox.className = 'rounded-xl p-3.5 text-xs leading-relaxed border bg-emerald-950/50 border-emerald-700 text-emerald-200';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold text-sm text-emerald-400">🎉 答對了！你已熟練掌握統一電導分流公式！</div>
+                    ${explanationHTML}
+                `;
+            } else {
+                feedbackBox.className = 'rounded-xl p-3.5 text-xs leading-relaxed border bg-rose-950/50 border-rose-800 text-rose-200';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold text-sm text-rose-400">❌ 再檢查一下計算喔！你的答案為 ${userVal} A</div>
+                    <div class="mt-1 text-slate-300">請確認分子是否取倒數 <span class="font-mono text-cyan-300">1/${targetR}</span>，且分母為所有支路倒數總和 <span class="font-mono text-purple-300">Σ(1/R)</span>：</div>
+                    ${explanationHTML}
+                `;
+            }
+        }
+
+        function loadQuizToSimulator() {
+            setBranchCount(quizState.branchCount);
+            setParamValues(quizState.iTotal, quizState.r1, quizState.r2, quizState.r3);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 支援按 Enter 鍵直接送出測驗答案
+        document.getElementById('quiz-answer-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') checkQuizAnswer();
+        });
+
+        // ==========================================
+        // 7. 視窗初始化與響應式監聽
+        // ==========================================
+        window.addEventListener('resize', resizeCanvas);
+
+        window.onload = function () {
+            resizeCanvas();
+            bindInputs();
+            initParticles();
+            recalculatePhysics();
+            generateNewQuiz();
+            requestAnimationFrame(renderCircuit);
+        };
+    </script>
+</body>
+</html>
